@@ -7,7 +7,7 @@ import {
 import { useApp } from '../context/AppContext';
 
 export default function CheckoutPage() {
-  const { cart, user, createOrder } = useApp();
+  const { cart, user, createOrder, showToast } = useApp();
   const navigate = useNavigate();
 
   // Payment Method Selection: 'momo' | 'bank' | 'cod'
@@ -28,16 +28,13 @@ export default function CheckoutPage() {
   // Consent & Submission state
   const [consentGiven, setConsentGiven] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  // Confirmed Order Result
-  const [confirmedOrders, setConfirmedOrders] = useState(null);
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const deliveryFee = cart.length > 0 ? 10 : 0;
   const total = subtotal + deliveryFee;
 
   // EMPTY CART FALLBACK WITH CLEAR NAVIGATION TO PREVENT BLANK SCREEN
-  if (cart.length === 0 && !confirmedOrders) {
+  if (cart.length === 0) {
     return (
       <div className="max-w-md mx-auto px-4 py-16 text-center space-y-6 animate-fade-in">
         <div className="w-20 h-20 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto shadow-xs">
@@ -52,14 +49,14 @@ export default function CheckoutPage() {
         <div className="flex flex-col sm:flex-row gap-3 pt-2">
           <button
             onClick={() => navigate('/')}
-            className="flex-1 py-3 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-colors flex items-center justify-center space-x-2 shadow-sm"
+            className="flex-1 py-3 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-colors flex items-center justify-center space-x-2 shadow-sm cursor-pointer"
           >
             <Home className="w-4 h-4" />
             <span>Return to Home</span>
           </button>
           <button
             onClick={() => navigate('/marketplace')}
-            className="flex-1 py-3 px-4 rounded-xl bg-brand-forest hover:bg-brand-dark text-white font-bold text-xs transition-colors flex items-center justify-center space-x-2 shadow-sm"
+            className="flex-1 py-3 px-4 rounded-xl bg-brand-forest hover:bg-brand-dark text-white font-bold text-xs transition-colors flex items-center justify-center space-x-2 shadow-sm cursor-pointer"
           >
             <ShoppingBag className="w-4 h-4" />
             <span>Explore Produce</span>
@@ -71,7 +68,7 @@ export default function CheckoutPage() {
 
   const handleConfirmOrder = (e) => {
     e.preventDefault();
-    if (!consentGiven) return;
+    if (!consentGiven || isSubmitting) return;
 
     setIsSubmitting(true);
 
@@ -85,92 +82,14 @@ export default function CheckoutPage() {
       paymentLabel = 'Cash on Pickup / Delivery';
     }
 
+    // Process order, notify pop-up feedback, and redirect immediately back home
     setTimeout(() => {
-      const created = createOrder(cart, paymentLabel);
+      createOrder(cart, paymentLabel);
       setIsSubmitting(false);
-      setConfirmedOrders(created);
-    }, 900);
+      showToast(`Payment Successful! Your order has been placed via ${paymentLabel}. Redirecting to Home...`, 'success');
+      navigate('/');
+    }, 700);
   };
-
-  // ORDER CONFIRMED VIEW WITH DIRECT NAVIGATION BACK TO HOME & ORDERS
-  if (confirmedOrders) {
-    return (
-      <div className="max-w-lg mx-auto px-4 py-12 text-center space-y-6 animate-fade-in">
-        <div className="w-20 h-20 bg-emerald-100 text-brand-forest rounded-full flex items-center justify-center mx-auto shadow-md">
-          <CheckCircle2 className="w-10 h-10" />
-        </div>
-
-        <div className="space-y-2">
-          <span className="text-xs font-extrabold px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 uppercase tracking-wider border border-emerald-200">
-            Payment & Order Confirmed
-          </span>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            Thank you for your order!
-          </h1>
-          <p className="text-xs text-slate-500 leading-relaxed max-w-sm mx-auto">
-            Your transaction has been processed securely. The producer has been notified to prepare your fresh Eswatini harvest.
-          </p>
-        </div>
-
-        {/* Order Details Card */}
-        <div className="bg-white rounded-3xl border border-slate-200/90 p-5 space-y-3.5 text-left shadow-sm">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-            <h3 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider">Order Receipt Summary</h3>
-            <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">Paid</span>
-          </div>
-
-          <div className="space-y-2">
-            {confirmedOrders.map(ord => (
-              <div key={ord.id} className="flex justify-between text-xs py-1">
-                <div>
-                  <span className="font-bold text-slate-800">{ord.product_name}</span> × {ord.quantity} {ord.unit}
-                  <div className="text-[11px] text-slate-500">Producer: {ord.farmer_name}</div>
-                </div>
-                <span className="font-extrabold text-brand-forest">E{ord.total_price}</span>
-              </div>
-            ))}
-          </div>
-
-          <div className="border-t border-slate-100 pt-2 space-y-1.5 text-xs text-slate-600">
-            <div className="flex justify-between">
-              <span>Payment Method</span>
-              <span className="font-semibold text-slate-900">{confirmedOrders[0]?.payment_method || 'Bank Card / MoMo'}</span>
-            </div>
-            <div className="flex justify-between text-sm font-extrabold text-slate-900 pt-1 border-t border-slate-100">
-              <span>Total Paid</span>
-              <span className="text-brand-forest">E{total}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* PROMINENT NAVIGATION ACTIONS: RETURN TO HOME, ORDERS, MARKETPLACE */}
-        <div className="flex flex-col sm:flex-row gap-3 pt-2">
-          <button
-            onClick={() => navigate('/')}
-            className="flex-1 py-3.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-colors flex items-center justify-center space-x-2 shadow-sm cursor-pointer"
-          >
-            <Home className="w-4 h-4" />
-            <span>Return to Home Screen</span>
-          </button>
-          
-          <button
-            onClick={() => navigate('/orders')}
-            className="flex-1 py-3.5 px-4 rounded-xl bg-brand-forest hover:bg-brand-dark text-white font-bold text-xs transition-colors flex items-center justify-center space-x-2 shadow-sm cursor-pointer"
-          >
-            <CheckCircle2 className="w-4 h-4" />
-            <span>Track My Orders</span>
-          </button>
-        </div>
-
-        <button
-          onClick={() => navigate('/marketplace')}
-          className="text-xs font-bold text-brand-forest hover:underline block mx-auto pt-1"
-        >
-          ← Continue Browsing Marketplace
-        </button>
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-4 pb-24 space-y-6">
@@ -180,7 +99,7 @@ export default function CheckoutPage() {
         <div className="flex items-center space-x-3">
           <button 
             onClick={() => navigate(-1)} 
-            className="p-1.5 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+            className="p-1.5 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
             title="Go back"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -193,7 +112,7 @@ export default function CheckoutPage() {
 
         <button
           onClick={() => navigate('/')}
-          className="px-3 py-1.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors flex items-center space-x-1.5"
+          className="px-3 py-1.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors flex items-center space-x-1.5 cursor-pointer"
         >
           <Home className="w-3.5 h-3.5" />
           <span>Home</span>
@@ -219,7 +138,7 @@ export default function CheckoutPage() {
             <button
               type="button"
               onClick={() => setPaymentMethod('bank')}
-              className={`p-4 rounded-2xl border text-left transition-all flex flex-col justify-between ${
+              className={`p-4 rounded-2xl border text-left transition-all flex flex-col justify-between cursor-pointer ${
                 paymentMethod === 'bank'
                   ? 'bg-emerald-50/60 border-brand-forest ring-2 ring-brand-forest/20 shadow-xs'
                   : 'bg-slate-50/80 border-slate-200 hover:bg-slate-100'
@@ -241,7 +160,7 @@ export default function CheckoutPage() {
             <button
               type="button"
               onClick={() => setPaymentMethod('momo')}
-              className={`p-4 rounded-2xl border text-left transition-all flex flex-col justify-between ${
+              className={`p-4 rounded-2xl border text-left transition-all flex flex-col justify-between cursor-pointer ${
                 paymentMethod === 'momo'
                   ? 'bg-emerald-50/60 border-brand-forest ring-2 ring-brand-forest/20 shadow-xs'
                   : 'bg-slate-50/80 border-slate-200 hover:bg-slate-100'
@@ -263,7 +182,7 @@ export default function CheckoutPage() {
             <button
               type="button"
               onClick={() => setPaymentMethod('cod')}
-              className={`p-4 rounded-2xl border text-left transition-all flex flex-col justify-between ${
+              className={`p-4 rounded-2xl border text-left transition-all flex flex-col justify-between cursor-pointer ${
                 paymentMethod === 'cod'
                   ? 'bg-emerald-50/60 border-brand-forest ring-2 ring-brand-forest/20 shadow-xs'
                   : 'bg-slate-50/80 border-slate-200 hover:bg-slate-100'
@@ -383,7 +302,7 @@ export default function CheckoutPage() {
                     <button
                       type="button"
                       onClick={() => setShowCvv(!showCvv)}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
                       title="Show/hide CVV"
                     >
                       {showCvv ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
@@ -501,7 +420,7 @@ export default function CheckoutPage() {
             <button
               type="button"
               onClick={() => navigate('/')}
-              className="w-full py-2.5 text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors flex items-center justify-center space-x-1.5"
+              className="w-full py-2.5 text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
             >
               <Home className="w-3.5 h-3.5 text-slate-500" />
               <span>Cancel and Return to Home Screen</span>
