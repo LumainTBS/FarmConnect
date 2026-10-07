@@ -32,14 +32,14 @@ export default function SubscriptionsPage() {
     if (!selectedTier) return;
 
     setIsProcessing(true);
-    // Simulate payment gateway delay (e.g. MTN MoMo prompt)
     setTimeout(async () => {
       await upgradeSubscription(selectedTier.id, {
-        paymentMethod: paymentMethod === 'momo' ? 'MTN Mobile Money (MoMo)' : 'Credit/Debit Card',
+        paymentMethod: paymentMethod === 'momo' ? 'MTN Mobile Money (MoMo)' : 'Credit/Debit Bank Card',
         momoNumber
       });
       setIsProcessing(false);
       setSelectedTier(null);
+      navigate('/');
     }, 1200);
   };
 
