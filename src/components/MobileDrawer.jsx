@@ -122,13 +122,16 @@ export default function MobileDrawer({ isOpen, onClose }) {
               <span>Leaderboard</span>
             </button>
 
-            <button 
-              onClick={() => handleNavigate('/market-trends')}
-              className="w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl hover:bg-emerald-900/50 text-emerald-100 hover:text-white text-sm font-medium text-left"
-            >
-              <TrendingUp className="w-5 h-5 text-emerald-400" />
-              <span>Market Trends</span>
-            </button>
+            {(isFarmer || user?.role === 'admin') && (
+              <button 
+                onClick={() => handleNavigate('/market-trends')}
+                className="w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl hover:bg-emerald-900/50 text-emerald-100 hover:text-white text-sm font-medium text-left"
+              >
+                <TrendingUp className="w-5 h-5 text-emerald-400" />
+                <span>Market Trends</span>
+                <span className="text-[9px] bg-amber-400 text-slate-950 font-extrabold px-1.5 py-0.2 rounded-md">PRO</span>
+              </button>
+            )}
 
             {isFarmer ? (
               <>

@@ -1,7 +1,11 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { useApp } from '../context/AppContext';
 
 export default function Footer() {
+  const { user } = useApp();
+  const isFarmer = user?.role === 'farmer';
+
   return (
     <footer className="bg-brand-dark text-emerald-100 border-t border-emerald-800/60 mt-auto pb-20 md:pb-8 pt-10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
@@ -36,8 +40,12 @@ export default function Footer() {
             <ul className="space-y-2 text-xs text-emerald-200/80">
               <li><Link to="/farmers" className="hover:text-white transition-colors">Farmers Directory</Link></li>
               <li><Link to="/recommended-farmers" className="hover:text-white transition-colors">Leaderboard</Link></li>
-              <li><Link to="/market-trends" className="hover:text-white transition-colors">Market Trends</Link></li>
-              <li><Link to="/farmer/plant-logs" className="hover:text-white transition-colors">Plant Logs</Link></li>
+              {(isFarmer || user?.role === 'admin') && (
+                <li><Link to="/market-trends" className="hover:text-white transition-colors">Market Trends (Pro)</Link></li>
+              )}
+              {isFarmer && (
+                <li><Link to="/farmer/plant-logs" className="hover:text-white transition-colors">Plant Logs</Link></li>
+              )}
             </ul>
           </div>
 

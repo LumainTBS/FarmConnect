@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
   TrendingUp, TrendingDown, Minus, Calendar, MapPin, Lightbulb, 
   Sprout, Lock, Sparkles, ArrowRight, ShieldCheck, CheckCircle2,
   CloudSun, Droplets, Wind, Thermometer, BarChart3, LineChart,
-  Filter, Search, ArrowUpRight, ArrowDownRight, RefreshCw, Info
+  Filter, Search, ArrowUpRight, ArrowDownRight, RefreshCw, Info, Home, UserPlus
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { INITIAL_SEASONAL_TIPS, SUBSCRIPTION_TIERS } from '../lib/supabase';
@@ -24,7 +24,8 @@ const ESWATINI_CROP_TRENDS = [
     topRegion: 'Manzini Region (Ludzeludze)',
     supplyStatus: 'High',
     demandStatus: 'Very High',
-    forecast: 'Stable prices through spring; increased urban market demand.',
+    forecast: 'Stable prices through spring; increased urban market demand in Manzini.',
+    image: 'https://images.unsplash.com/photo-1576045057995-568f588f82fb?auto=format&fit=crop&w=600&q=80',
     history: [
       { month: 'May', price: 16 },
       { month: 'Jun', price: 17 },
@@ -48,6 +49,7 @@ const ESWATINI_CROP_TRENDS = [
     supplyStatus: 'Surplus',
     demandStatus: 'Moderate',
     forecast: 'Peak harvest influx in Malkerns lowveld creating buyer advantage.',
+    image: 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=600&q=80',
     history: [
       { month: 'May', price: 22 },
       { month: 'Jun', price: 20 },
@@ -71,6 +73,7 @@ const ESWATINI_CROP_TRENDS = [
     supplyStatus: 'Tight',
     demandStatus: 'High',
     forecast: 'Dry transition season tightening un-irrigated grain stocks.',
+    image: 'https://images.unsplash.com/photo-1551754655-cd27e38d2076?auto=format&fit=crop&w=600&q=80',
     history: [
       { month: 'May', price: 9.5 },
       { month: 'Jun', price: 10 },
@@ -94,6 +97,7 @@ const ESWATINI_CROP_TRENDS = [
     supplyStatus: 'Balanced',
     demandStatus: 'Steady',
     forecast: 'Consistent institutional butchery orders across Mbabane.',
+    image: 'https://images.unsplash.com/photo-1558030006-450675393462?auto=format&fit=crop&w=600&q=80',
     history: [
       { month: 'May', price: 65 },
       { month: 'Jun', price: 68 },
@@ -117,6 +121,7 @@ const ESWATINI_CROP_TRENDS = [
     supplyStatus: 'Moderate',
     demandStatus: 'Very High',
     forecast: 'Increased demand from urban bakeries and commercial vendors.',
+    image: 'https://images.unsplash.com/photo-1516467508483-a7212febe31a?auto=format&fit=crop&w=600&q=80',
     history: [
       { month: 'May', price: 34 },
       { month: 'Jun', price: 35 },
@@ -140,6 +145,7 @@ const ESWATINI_CROP_TRENDS = [
     supplyStatus: 'High',
     demandStatus: 'Moderate',
     forecast: 'Good harvests from Matsanjeni farms providing steady supply.',
+    image: 'https://images.unsplash.com/photo-1598170845058-12ef4a457539?auto=format&fit=crop&w=600&q=80',
     history: [
       { month: 'May', price: 12 },
       { month: 'Jun', price: 11.5 },
@@ -153,17 +159,26 @@ const ESWATINI_CROP_TRENDS = [
 
 // Eswatini Weather Forecast Sample Dataset for Weather API Widget
 const ESWATINI_REGIONAL_WEATHER = [
-  { region: 'Manzini Hub', temp: '24°C', condition: 'Partly Sunny', humidity: '58%', rainfallProb: '15%', soilMoisture: 'Good', icon: 'CloudSun' },
-  { region: 'Malkerns Valley', temp: '23°C', condition: 'Scattered Showers', humidity: '65%', rainfallProb: '45%', soilMoisture: 'Optimal', icon: 'CloudSun' },
-  { region: 'Piggs Peak (Hhohho)', temp: '20°C', condition: 'Clear Skies', humidity: '50%', rainfallProb: '5%', soilMoisture: 'Moderate', icon: 'CloudSun' },
-  { region: 'Shiselweni Highveld', temp: '21°C', condition: 'Mild Rains', humidity: '70%', rainfallProb: '60%', soilMoisture: 'High', icon: 'CloudSun' }
+  { region: 'Manzini Hub', temp: '24°C', condition: 'Partly Sunny', humidity: '58%', rainfallProb: '15%', soilMoisture: 'Good' },
+  { region: 'Malkerns Valley', temp: '23°C', condition: 'Scattered Showers', humidity: '65%', rainfallProb: '45%', soilMoisture: 'Optimal' },
+  { region: 'Piggs Peak (Hhohho)', temp: '20°C', condition: 'Clear Skies', humidity: '50%', rainfallProb: '5%', soilMoisture: 'Moderate' },
+  { region: 'Shiselweni Highveld', temp: '21°C', condition: 'Mild Rains', humidity: '70%', rainfallProb: '60%', soilMoisture: 'High' }
 ];
 
 export default function MarketTrendsPage() {
   const { user } = useApp();
-  
+  const navigate = useNavigate();
+
+  const isFarmer = user?.role === 'farmer';
+  const isAdmin = user?.role === 'admin';
   const userTier = user?.subscription_tier || 'free';
-  const hasAccess = userTier === 'premium' || userTier === 'investor' || user?.role === 'admin' || user?.role === 'buyer';
+  
+  // Strict Access Logic:
+  // 1. Buyers or Guests (Logged out) -> Hidden / Restricted Access
+  // 2. Farmers on Free/Basic -> Locked Teaser View with Upgrade CTA
+  // 3. Farmers on Premium/Investor or Admin -> Unlocked Full Visual Dashboard
+  const isVisitorOrBuyer = !user || user.role === 'buyer';
+  const hasPaidFarmerAccess = (isFarmer && (userTier === 'premium' || userTier === 'investor')) || isAdmin;
 
   const [selectedCropId, setSelectedCropId] = useState('spinach');
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -198,14 +213,186 @@ export default function MarketTrendsPage() {
 
   const areaD = `${pathD} L ${points[points.length - 1].x},${svgHeight - padding} L ${points[0].x},${svgHeight - padding} Z`;
 
+  // CASE 1: BUYERS OR LOGGED OUT VISITORS -> FULLY HIDDEN / RESTRICTED ACCESS
+  if (isVisitorOrBuyer) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12 pb-24 space-y-8 animate-fade-in">
+        
+        <div 
+          className="relative overflow-hidden rounded-3xl p-8 sm:p-12 text-center text-white shadow-2xl border border-slate-700"
+          style={{
+            backgroundImage: "linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(6, 78, 59, 0.90) 100%), url('https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1200&q=80')",
+            backgroundSize: 'cover',
+            backgroundPosition: 'center'
+          }}
+        >
+          <div className="max-w-md mx-auto space-y-5 relative z-10">
+            <div className="w-16 h-16 bg-amber-500/20 text-amber-400 border border-amber-500/40 rounded-2xl flex items-center justify-center mx-auto shadow-lg">
+              <Lock className="w-8 h-8" />
+            </div>
+
+            <div className="space-y-2">
+              <span className="text-[10px] font-extrabold uppercase px-3 py-1 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30 tracking-widest">
+                FARMER EXCLUSIVE ANALYTICS
+              </span>
+              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+                Market Trends Access Restricted
+              </h1>
+              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                Market Trends & Regional Crop Price Forecasting is an exclusive tool reserved for registered Eswatini agricultural producers (Farmers). Buyers and general visitors do not have access to this section.
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+              <button
+                onClick={() => navigate('/')}
+                className="flex-1 py-3 px-4 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs border border-white/20 transition-all flex items-center justify-center space-x-2"
+              >
+                <Home className="w-4 h-4" />
+                <span>Return to Home</span>
+              </button>
+
+              <button
+                onClick={() => navigate('/register')}
+                className="flex-1 py-3 px-4 rounded-xl bg-brand-forest hover:bg-brand-dark text-white font-bold text-xs transition-all flex items-center justify-center space-x-2 shadow-lg"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>Register as Farmer</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    );
+  }
+
+  // CASE 2: FARMER ON FREE / BASIC PLAN -> LOCKED TEASER PAGE WITH UPGRADE CTA
+  if (!hasPaidFarmerAccess) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 pb-24 space-y-8 animate-fade-in">
+        
+        {/* LOCKED HERO BANNER WITH ESWATINI FARM BACKGROUND IMAGE */}
+        <div 
+          className="relative overflow-hidden rounded-3xl p-8 sm:p-12 text-center text-white shadow-2xl border border-slate-700"
+          style={{
+            backgroundImage: "linear-gradient(135deg, rgba(10, 36, 22, 0.94) 0%, rgba(15, 23, 42, 0.92) 100%), url('https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1200&q=80')",
+            backgroundSize: 'cover',
+            backgroundPosition: 'center'
+          }}
+        >
+          <div className="max-w-xl mx-auto space-y-5 relative z-10">
+            <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-bold">
+              <Lock className="w-4 h-4 text-amber-400" />
+              <span>PREMIUM & INVESTOR TIER EXCLUSIVE</span>
+            </div>
+
+            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white leading-tight">
+              Unlock Eswatini Agricultural Price Intelligence
+            </h1>
+
+            <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">
+              Real-time regional crop price tracking, seasonal harvest forecasting, and wholesale market alerts are exclusively available for Commercial Producers (<strong className="text-emerald-300">Premium Plan - E150/mo</strong>) and Agri-Enterprises (<strong className="text-amber-300">Investor Plan - E350/mo</strong>).
+            </p>
+
+            <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+              <Link
+                to="/subscriptions"
+                className="w-full sm:w-auto px-6 py-3.5 bg-brand-forest hover:bg-brand-dark text-white font-bold text-sm rounded-2xl transition-all shadow-xl flex items-center justify-center space-x-2"
+              >
+                <Sparkles className="w-4 h-4 text-amber-300" />
+                <span>Upgrade to Premium to Unlock Market Trends (E150)</span>
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        {/* BLURRED PREVIEW CARDS */}
+        <div className="space-y-4 opacity-40 filter blur-[2px] pointer-events-none select-none">
+          <h2 className="font-bold text-slate-900 text-sm">Regional Price Overview (Locked Preview)</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {ESWATINI_CROP_TRENDS.slice(0, 3).map((item, idx) => (
+              <div key={idx} className="bg-white rounded-2xl border border-slate-200 p-4 space-y-2 shadow-xs">
+                <div className="flex items-center justify-between text-xs text-slate-500 font-semibold">
+                  <span>{item.topRegion}</span>
+                  <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[10px]">Active</span>
+                </div>
+                <h3 className="font-bold text-slate-900">{item.name}</h3>
+                <div className="text-lg font-bold text-brand-forest">E{item.currentPrice}/{item.unit}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* WHY UPGRADE FEATURE CARDS WITH CROP IMAGES */}
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 space-y-6 shadow-sm">
+          <h2 className="text-xl font-bold text-slate-900">What You Unlock on Premium Plan</h2>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 text-xs">
+            
+            <div className="bg-slate-50 rounded-2xl border border-slate-200 overflow-hidden space-y-3 p-4">
+              <img src="https://images.unsplash.com/photo-1576045057995-568f588f82fb?auto=format&fit=crop&w=400&q=80" alt="Trends" className="w-full h-28 object-cover rounded-xl" />
+              <div className="space-y-1">
+                <div className="font-extrabold text-slate-900 text-sm flex items-center space-x-1.5">
+                  <TrendingUp className="w-4 h-4 text-emerald-600" />
+                  <span>Price Trend Graphs</span>
+                </div>
+                <p className="text-slate-600">Know exactly when prices peak across Manzini, Hhohho, and Lubombo regions.</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 rounded-2xl border border-slate-200 overflow-hidden space-y-3 p-4">
+              <img src="https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=400&q=80" alt="Advice" className="w-full h-28 object-cover rounded-xl" />
+              <div className="space-y-1">
+                <div className="font-extrabold text-slate-900 text-sm flex items-center space-x-1.5">
+                  <Lightbulb className="w-4 h-4 text-amber-600" />
+                  <span>Harvesting Intelligence</span>
+                </div>
+                <p className="text-slate-600">Rule-based recommendations on high-yield planting timing to maximize produce value.</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 rounded-2xl border border-slate-200 overflow-hidden space-y-3 p-4">
+              <img src="https://images.unsplash.com/photo-1558030006-450675393462?auto=format&fit=crop&w=400&q=80" alt="Discount" className="w-full h-28 object-cover rounded-xl" />
+              <div className="space-y-1">
+                <div className="font-extrabold text-slate-900 text-sm flex items-center space-x-1.5">
+                  <ShieldCheck className="w-4 h-4 text-blue-600" />
+                  <span>2.5% Platform Commission</span>
+                </div>
+                <p className="text-slate-600">Save with reduced 2.5% (Premium) or 1.0% (Investor) platform transaction fees.</p>
+              </div>
+            </div>
+
+          </div>
+
+          <div className="text-center pt-2">
+            <Link
+              to="/subscriptions"
+              className="inline-flex items-center space-x-2 px-6 py-3 bg-brand-forest hover:bg-brand-dark text-white font-extrabold text-xs rounded-xl transition-all shadow-md"
+            >
+              <span>Upgrade to Premium Plan Now →</span>
+            </Link>
+          </div>
+        </div>
+
+      </div>
+    );
+  }
+
+  // CASE 3: UNLOCKED FULL DASHBOARD (Farmer on Premium/Investor Plan or Admin)
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 space-y-8 animate-fade-in">
       
-      {/* HEADER HERO BANNER */}
-      <div className="relative overflow-hidden rounded-3xl bg-slate-900 text-white p-6 sm:p-10 shadow-2xl border border-slate-800">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-brand-forest/20 rounded-full blur-3xl pointer-events-none"></div>
-        <div className="absolute bottom-0 left-1/3 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
-
+      {/* HEADER HERO BANNER WITH ESWATINI AGRICULTURAL LANDSCAPE IMAGE */}
+      <div 
+        className="relative overflow-hidden rounded-3xl text-white p-6 sm:p-10 shadow-2xl border border-slate-800"
+        style={{
+          backgroundImage: "linear-gradient(135deg, rgba(10, 36, 22, 0.94) 0%, rgba(15, 23, 42, 0.90) 100%), url('https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1200&q=80')",
+          backgroundSize: 'cover',
+          backgroundPosition: 'center'
+        }}
+      >
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-3 max-w-2xl">
             <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold uppercase tracking-wider">
@@ -222,28 +409,18 @@ export default function MarketTrendsPage() {
             </p>
           </div>
 
-          {/* Quick Access Pill / Status */}
+          {/* Pro Status Badge */}
           <div className="bg-slate-800/80 backdrop-blur-md p-4 rounded-2xl border border-slate-700/80 space-y-2 shrink-0 max-w-xs">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-400 font-semibold">Access Tier</span>
-              <span className={`font-extrabold text-[10px] uppercase px-2.5 py-0.5 rounded-full ${
-                hasAccess ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-              }`}>
-                {hasAccess ? 'Pro Analytics Unlocked' : 'Free Teaser Mode'}
+              <span className="text-slate-400 font-semibold">Access Status</span>
+              <span className="font-extrabold text-[10px] uppercase px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+                PRO ANALYTICS UNLOCKED
               </span>
             </div>
             <div className="text-xs text-slate-300 flex items-center space-x-1.5">
               <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span>Updated daily from local markets</span>
+              <span>Active Plan: {SUBSCRIPTION_TIERS[userTier]?.name || 'Pro Access'}</span>
             </div>
-            {!hasAccess && (
-              <Link
-                to="/subscriptions"
-                className="mt-2 block w-full text-center py-2 px-3 bg-brand-forest hover:bg-brand-dark text-white font-bold text-xs rounded-xl transition-all shadow-xs"
-              >
-                Upgrade to Pro Trends →
-              </Link>
-            )}
           </div>
         </div>
       </div>
@@ -328,11 +505,14 @@ export default function MarketTrendsPage() {
           {/* SVG Price Line Graph */}
           <div className="relative bg-slate-900 text-white rounded-2xl p-4 sm:p-6 space-y-4 overflow-hidden border border-slate-800 shadow-inner">
             <div className="flex items-center justify-between">
-              <div>
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{selectedCrop.topRegion}</span>
-                <div className="text-xl sm:text-2xl font-extrabold text-white flex items-center space-x-2">
-                  <span>{selectedCrop.name}</span>
-                  <span className="text-brand-forest">E{selectedCrop.currentPrice}/{selectedCrop.unit}</span>
+              <div className="flex items-center space-x-3">
+                <img src={selectedCrop.image} alt={selectedCrop.name} className="w-12 h-12 rounded-xl object-cover border border-slate-700 shrink-0" />
+                <div>
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{selectedCrop.topRegion}</span>
+                  <div className="text-xl sm:text-2xl font-extrabold text-white flex items-center space-x-2">
+                    <span>{selectedCrop.name}</span>
+                    <span className="text-brand-forest">E{selectedCrop.currentPrice}/{selectedCrop.unit}</span>
+                  </div>
                 </div>
               </div>
 
@@ -484,7 +664,7 @@ export default function MarketTrendsPage() {
             </div>
           </div>
 
-          {/* COMMODITY LIST CARDS */}
+          {/* COMMODITY LIST CARDS WITH PRODUCE IMAGES */}
           <div className="space-y-3">
             <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider text-slate-500 px-1">
               Eswatini Crop Price Index ({filteredCrops.length})
@@ -494,37 +674,31 @@ export default function MarketTrendsPage() {
               <div 
                 key={crop.id}
                 onClick={() => setSelectedCropId(crop.id)}
-                className={`p-4 rounded-2xl border transition-all cursor-pointer space-y-2 ${
+                className={`p-3.5 rounded-2xl border transition-all cursor-pointer space-y-2.5 ${
                   selectedCropId === crop.id
                     ? 'bg-emerald-50/70 border-brand-forest shadow-xs ring-1 ring-brand-forest/20'
                     : 'bg-white border-slate-200/90 hover:border-slate-300 hover:shadow-xs'
                 }`}
               >
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center space-x-1">
-                    <MapPin className="w-3 h-3 text-slate-400" />
-                    <span>{crop.topRegion.split(' ')[0]}</span>
-                  </span>
-
-                  <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full flex items-center space-x-1 ${
-                    crop.trend === 'rising' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
-                    crop.trend === 'falling' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                    'bg-slate-100 text-slate-600'
-                  }`}>
-                    {crop.trend === 'rising' && <TrendingUp className="w-3 h-3 text-rose-600" />}
-                    {crop.trend === 'falling' && <TrendingDown className="w-3 h-3 text-emerald-600" />}
-                    <span className="capitalize">{crop.trend}</span>
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-extrabold text-slate-900 text-sm">{crop.name}</h4>
-                    <span className="text-[10px] text-slate-400 font-medium">Volume: {crop.volume}</span>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-lg font-extrabold text-brand-forest">E{crop.currentPrice}</div>
-                    <span className="text-[10px] text-slate-400 font-medium">per {crop.unit}</span>
+                <div className="flex items-center space-x-3">
+                  <img src={crop.image} alt={crop.name} className="w-12 h-12 rounded-xl object-cover bg-slate-100 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-extrabold text-slate-900 text-xs truncate">{crop.name}</h4>
+                      <span className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded-full flex items-center space-x-0.5 ${
+                        crop.trend === 'rising' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                        crop.trend === 'falling' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                        'bg-slate-100 text-slate-600'
+                      }`}>
+                        {crop.trend === 'rising' && <TrendingUp className="w-2.5 h-2.5 text-rose-600" />}
+                        {crop.trend === 'falling' && <TrendingDown className="w-2.5 h-2.5 text-emerald-600" />}
+                        <span className="capitalize">{crop.trend}</span>
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="text-[10px] text-slate-500 truncate">{crop.topRegion.split(' ')[0]}</span>
+                      <div className="text-sm font-extrabold text-brand-forest">E{crop.currentPrice}<span className="text-[9px] text-slate-400 font-normal">/{crop.unit}</span></div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -535,7 +709,7 @@ export default function MarketTrendsPage() {
 
       </div>
 
-      {/* SEASONAL ADVICE & CALENDAR SECTION */}
+      {/* SEASONAL ADVICE & CALENDAR SECTION WITH FARMING IMAGES */}
       <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 space-y-5 shadow-xs">
         <div className="flex items-center space-x-3 border-b border-slate-100 pb-3">
           <div className="p-2 bg-amber-50 rounded-xl text-amber-600 border border-amber-200">

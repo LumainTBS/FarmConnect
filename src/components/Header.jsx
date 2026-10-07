@@ -58,10 +58,13 @@ export default function Header() {
                 <Award className="w-4 h-4 text-amber-500" />
                 <span>Leaderboard</span>
               </Link>
-              <Link to="/market-trends" className="hover:text-brand-forest transition-colors flex items-center space-x-1">
-                <TrendingUp className="w-4 h-4 text-emerald-600" />
-                <span>Trends</span>
-              </Link>
+              {(isFarmer || user?.role === 'admin') && (
+                <Link to="/market-trends" className="hover:text-brand-forest transition-colors flex items-center space-x-1">
+                  <TrendingUp className="w-4 h-4 text-emerald-600" />
+                  <span>Trends</span>
+                  <span className="text-[9px] bg-amber-100 text-amber-900 font-extrabold px-1.5 py-0.2 rounded-md">PRO</span>
+                </Link>
+              )}
               <Link to="/subscriptions" className="hover:text-brand-forest transition-colors text-emerald-800 font-semibold">
                 Pricing
               </Link>
