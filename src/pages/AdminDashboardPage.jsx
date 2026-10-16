@@ -8,10 +8,10 @@ import {
 import { useApp } from '../context/AppContext';
 import { SUBSCRIPTION_TIERS } from '../lib/supabase';
 
-export default function AdminDashboardPage() {
+export default function AdminDashboardPage(){
   const { 
     user, 
-    farmers, 
+    farmers,  
     orders, 
     listings, 
     subscriptionPayments,

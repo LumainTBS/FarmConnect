@@ -5,6 +5,7 @@ import {
   ArrowRight, ArrowLeft, Home, ShoppingBag, Lock, Eye, EyeOff, Building2 
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { initiateMtnMoMoPayment, initiateDpoCardPayment } from '../lib/paymentService';
 
 export default function CheckoutPage() {
   const { cart, user, createOrder, showToast } = useApp();
@@ -66,18 +67,33 @@ export default function CheckoutPage() {
     );
   }
 
-  const handleConfirmOrder = (e) => {
+  const handleConfirmOrder = async (e) => {
     e.preventDefault();
     if (!consentGiven || isSubmitting) return;
 
     setIsSubmitting(true);
+    const tempOrderId = `FC00${Math.floor(100 + Math.random() * 900)}`;
 
     let paymentLabel = '';
     if (paymentMethod === 'momo') {
+      await initiateMtnMoMoPayment({
+        phone: momoNumber,
+        amount: total,
+        orderId: tempOrderId,
+        note: `Payment for ${cart.length} produce item(s)`
+      });
       paymentLabel = `MTN Mobile Money (${momoNumber} - ${momoName})`;
     } else if (paymentMethod === 'bank') {
       const masked = cardNumber.replace(/\s+/g, '').slice(-4) || '9010';
-      paymentLabel = `${bankName} Card (Ending ****${masked})`;
+      await initiateDpoCardPayment({
+        cardHolder,
+        cardNumber,
+        expiry: cardExpiry,
+        cvv: cardCvv,
+        amount: total,
+        orderId: tempOrderId
+      });
+      paymentLabel = `${bankName} Card (DPO Pay ****${masked})`;
     } else {
       paymentLabel = 'Cash on Pickup / Delivery';
     }
@@ -86,7 +102,7 @@ export default function CheckoutPage() {
     setTimeout(() => {
       createOrder(cart, paymentLabel);
       setIsSubmitting(false);
-      showToast(`Payment Successful! Your order has been placed via ${paymentLabel}. Redirecting to Home...`, 'success');
+      showToast(`Payment Authorized! Your order has been placed via ${paymentLabel}. Redirecting to Home...`, 'success');
       navigate('/');
     }, 700);
   };

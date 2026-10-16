@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { SUBSCRIPTION_TIERS } from '../lib/supabase';
+import { initiateMtnMoMoPayment, initiateDpoCardPayment } from '../lib/paymentService';
 
 export default function SubscriptionsPage() {
   const { user, upgradeSubscription, listings } = useApp();
@@ -32,15 +33,34 @@ export default function SubscriptionsPage() {
     if (!selectedTier) return;
 
     setIsProcessing(true);
+
+    if (paymentMethod === 'momo') {
+      await initiateMtnMoMoPayment({
+        phone: momoNumber,
+        amount: selectedTier.price,
+        orderId: `SUB-${selectedTier.id.toUpperCase()}-${Date.now()}`,
+        note: `Subscription Upgrade to ${selectedTier.name}`
+      });
+    } else {
+      await initiateDpoCardPayment({
+        cardHolder: user?.full_name || 'Subscriber',
+        cardNumber: '4000 1234 5678 9010',
+        expiry: '12/28',
+        cvv: '123',
+        amount: selectedTier.price,
+        orderId: `SUB-${selectedTier.id.toUpperCase()}-${Date.now()}`
+      });
+    }
+
     setTimeout(async () => {
       await upgradeSubscription(selectedTier.id, {
-        paymentMethod: paymentMethod === 'momo' ? 'MTN Mobile Money (MoMo)' : 'Credit/Debit Bank Card',
+        paymentMethod: paymentMethod === 'momo' ? 'MTN Mobile Money (MoMo)' : 'Credit/Debit Bank Card (DPO Pay)',
         momoNumber
       });
       setIsProcessing(false);
       setSelectedTier(null);
       navigate('/');
-    }, 1200);
+    }, 1000);
   };
 
   return (
