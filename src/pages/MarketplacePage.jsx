@@ -110,7 +110,7 @@ export default function MarketplacePage() {
             <button
               key={cat.id}
               onClick={() => handleCategorySelect(cat.id)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold shrink-0 transition-colors ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold shrink-0 transition-colors ${
                 isSelected
                   ? 'bg-brand-forest text-white shadow-xs'
                   : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'

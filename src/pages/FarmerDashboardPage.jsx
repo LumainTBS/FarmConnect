@@ -143,7 +143,7 @@ export default function FarmerDashboardPage() {
       {/* Rectangular Split Banner for Farmer Dashboard (B3.png with typography on left, image on right) */}
       <div className="banner-split p-6 sm:p-7 text-white flex flex-col sm:flex-row items-center justify-between gap-6 group hover:border-emerald-400/50 transition-all">
         <div className="space-y-2 z-10 flex-1">
-          <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-500/30 border border-emerald-400 text-emerald-200">
+          <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-300">
             <Sprout className="w-3.5 h-3.5" /> Producer Subsidy & Seeds
           </span>
           <h3 className="font-extrabold text-lg sm:text-xl text-white leading-snug">

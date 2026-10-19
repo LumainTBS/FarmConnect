@@ -232,7 +232,7 @@ export default function MarketTrendsPage() {
             </div>
 
             <div className="space-y-2">
-              <span className="text-[10px] font-extrabold uppercase px-3 py-1 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30 tracking-widest">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300">
                 FARMER EXCLUSIVE ANALYTICS
               </span>
               <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
@@ -282,7 +282,7 @@ export default function MarketTrendsPage() {
           }}
         >
           <div className="max-w-xl mx-auto space-y-5 relative z-10">
-            <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-bold">
+            <div className="inline-flex items-center space-x-2 text-amber-300 text-xs font-bold uppercase tracking-wider">
               <Lock className="w-4 h-4 text-amber-400" />
               <span>PREMIUM & INVESTOR TIER EXCLUSIVE</span>
             </div>
@@ -395,7 +395,7 @@ export default function MarketTrendsPage() {
       >
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-3 max-w-2xl">
-            <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold uppercase tracking-wider">
+            <div className="inline-flex items-center space-x-2 text-emerald-300 text-xs font-bold uppercase tracking-wider">
               <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
               <span>ESWATINI AGRI-ANALYTICS & COMMODITY INTELLIGENCE</span>
             </div>
@@ -413,7 +413,7 @@ export default function MarketTrendsPage() {
           <div className="bg-slate-800/80 backdrop-blur-md p-4 rounded-2xl border border-slate-700/80 space-y-2 shrink-0 max-w-xs">
             <div className="flex items-center justify-between text-xs">
               <span className="text-slate-400 font-semibold">Access Status</span>
-              <span className="font-extrabold text-[10px] uppercase px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+              <span className="font-extrabold text-[10px] uppercase px-2.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
                 PRO ANALYTICS UNLOCKED
               </span>
             </div>
@@ -516,7 +516,7 @@ export default function MarketTrendsPage() {
                 </div>
               </div>
 
-              <div className={`text-xs font-extrabold px-3 py-1 rounded-full flex items-center space-x-1 ${
+              <div className={`text-xs font-extrabold px-2.5 py-1 rounded-md flex items-center space-x-1 ${
                 selectedCrop.trend === 'rising' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' :
                 selectedCrop.trend === 'falling' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
                 'bg-slate-700 text-slate-300'

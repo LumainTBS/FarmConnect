@@ -4,7 +4,7 @@ import { Trash2, ShoppingBag, ArrowRight, ShieldCheck, Plus, Minus } from 'lucid
 import { useApp } from '../context/AppContext';
 
 export default function CartPage() {
-  const { cart, removeFromCart, updateCartQuantity } = useApp();
+  const { cart, removeFromCart, updateCartQuantity, listings, showToast } = useApp();
   const navigate = useNavigate();
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -14,7 +14,7 @@ export default function CartPage() {
   if (cart.length === 0) {
     return (
       <div className="max-w-md mx-auto px-4 py-16 text-center space-y-4">
-        <div className="w-16 h-16 bg-emerald-50 text-brand-forest rounded-full flex items-center justify-center mx-auto">
+        <div className="w-16 h-16 bg-emerald-50 text-brand-forest rounded-2xl flex items-center justify-center mx-auto">
           <ShoppingBag className="w-8 h-8" />
         </div>
         <h1 className="text-xl font-bold text-slate-900">Your Cart is Empty</h1>
@@ -41,57 +41,78 @@ export default function CartPage() {
         
         {/* Cart Item List (Mobile Stacked Layout) */}
         <div className="lg:col-span-2 space-y-3">
-          {cart.map((item) => (
-            <div 
-              key={item.id}
-              className="bg-white rounded-xl border border-slate-200/90 p-3.5 flex items-center gap-3.5 shadow-xs"
-            >
-              <img 
-                src={item.images ? item.images[0] : 'https://images.unsplash.com/photo-1576045057995-568f588f82fb?auto=format&fit=crop&w=300&q=80'} 
-                alt={item.product_type} 
-                className="w-20 h-20 rounded-lg object-cover shrink-0 bg-slate-100"
-              />
+          {cart.map((item) => {
+            const currentListing = listings.find(l => l.id === item.id);
+            const stockRemaining = currentListing ? Number(currentListing.quantity) : 999;
+            const isSoldOut = stockRemaining <= 0;
 
-              <div className="flex-1 min-w-0 space-y-1">
-                <div className="flex items-start justify-between gap-1">
-                  <h3 className="font-bold text-slate-900 text-sm truncate">{item.product_type}</h3>
-                  <button 
-                    onClick={() => removeFromCart(item.id)}
-                    className="text-slate-400 hover:text-rose-500 p-1"
-                    aria-label="Remove item"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+            return (
+              <div 
+                key={item.id}
+                className={`rounded-xl border p-3.5 flex items-center gap-3.5 shadow-xs transition-all ${
+                  isSoldOut ? 'bg-slate-50 border-rose-200 opacity-75' : 'bg-white border-slate-200/90'
+                }`}
+              >
+                <img 
+                  src={item.images ? item.images[0] : 'https://images.unsplash.com/photo-1576045057995-568f588f82fb?auto=format&fit=crop&w=300&q=80'} 
+                  alt={item.product_type} 
+                  className="w-20 h-20 rounded-lg object-cover shrink-0 bg-slate-100"
+                />
 
-                <p className="text-xs text-slate-500">{item.farmer_name}</p>
-
-                <div className="flex items-center justify-between pt-1">
-                  <div className="text-sm font-extrabold text-brand-forest">
-                    E{item.price * item.quantity}{' '}
-                    <span className="text-[10px] text-slate-400 font-normal">(E{item.price}/{item.unit})</span>
+                <div className="flex-1 min-w-0 space-y-1">
+                  <div className="flex items-start justify-between gap-1">
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-sm truncate">{item.product_type}</h3>
+                      {isSoldOut ? (
+                        <span className="text-[10px] font-bold text-rose-600 block">Sold Out &middot; Please remove</span>
+                      ) : (
+                        <span className="text-[10px] text-slate-400 font-medium block">{stockRemaining} {item.unit} available</span>
+                      )}
+                    </div>
+                    <button 
+                      onClick={() => removeFromCart(item.id)}
+                      className="text-slate-400 hover:text-rose-500 p-1"
+                      aria-label="Remove item"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
 
-                  {/* Quantity Stepper */}
-                  <div className="inline-flex items-center border border-slate-200 rounded-lg bg-slate-50">
-                    <button
-                      onClick={() => updateCartQuantity(item.id, item.quantity - 1)}
-                      className="p-1 text-slate-600 hover:bg-slate-200 rounded-l-lg"
-                    >
-                      <Minus className="w-3 h-3" />
-                    </button>
-                    <span className="w-7 text-center text-xs font-bold">{item.quantity}</span>
-                    <button
-                      onClick={() => updateCartQuantity(item.id, item.quantity + 1)}
-                      className="p-1 text-slate-600 hover:bg-slate-200 rounded-r-lg"
-                    >
-                      <Plus className="w-3 h-3" />
-                    </button>
+                  <p className="text-xs text-slate-500">{item.farmer_name}</p>
+
+                  <div className="flex items-center justify-between pt-1">
+                    <div className="text-sm font-extrabold text-brand-forest">
+                      E{item.price * item.quantity}{' '}
+                      <span className="text-[10px] text-slate-400 font-normal">(E{item.price}/{item.unit})</span>
+                    </div>
+
+                    {/* Quantity Stepper */}
+                    <div className="inline-flex items-center border border-slate-200 rounded-lg bg-slate-50">
+                      <button
+                        onClick={() => updateCartQuantity(item.id, item.quantity - 1)}
+                        className="p-1 text-slate-600 hover:bg-slate-200 rounded-l-lg"
+                      >
+                        <Minus className="w-3 h-3" />
+                      </button>
+                      <span className="w-7 text-center text-xs font-bold">{item.quantity}</span>
+                      <button
+                        onClick={() => {
+                          if (item.quantity >= stockRemaining) {
+                            showToast(`Only ${stockRemaining} ${item.unit} available in stock`, 'info');
+                            return;
+                          }
+                          updateCartQuantity(item.id, item.quantity + 1);
+                        }}
+                        className="p-1 text-slate-600 hover:bg-slate-200 rounded-r-lg"
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           <Link
             to="/marketplace"

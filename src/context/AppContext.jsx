@@ -39,21 +39,9 @@ export const isFarmerOrder = (order, user) => {
 const AppContext = createContext();
 
 export const AppProvider = ({ children }) => {
-  // Authentication & Session Loading State
+  // Authentication & Session Loading State (Strict session check prevents cross-account leak)
   const [authLoading, setAuthLoading] = useState(true);
-  const [user, setUser] = useState(() => {
-    const savedUser = localStorage.getItem('farmconnect_user');
-    if (!savedUser) return null;
-    try {
-      const parsed = JSON.parse(savedUser);
-      return {
-        ...parsed,
-        farmer_id: parsed.farmer_id || (parsed.role === 'farmer' ? (parsed.id || 'frm-1') : undefined)
-      };
-    } catch {
-      return null;
-    }
-  });
+  const [user, setUser] = useState(null);
 
   // Toast notification state
   const [toast, setToast] = useState(null);
@@ -393,7 +381,7 @@ export const AppProvider = ({ children }) => {
       }
     };
 
-    // 1. Initial session check
+    // 1. Initial session check (Strict: only activate user if verified Supabase session exists)
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         syncUserProfile(session.user);
@@ -402,9 +390,15 @@ export const AppProvider = ({ children }) => {
           showToast(`Welcome back, ${session.user.user_metadata?.full_name || 'Farmer'}!`, 'success');
         }
       } else {
+        setUser(null);
+        localStorage.removeItem('farmconnect_user');
         setAuthLoading(false);
       }
-    }).catch(() => setAuthLoading(false));
+    }).catch(() => {
+      setUser(null);
+      localStorage.removeItem('farmconnect_user');
+      setAuthLoading(false);
+    });
 
     // 2. Auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -653,7 +647,7 @@ export const AppProvider = ({ children }) => {
     showToast('Listing updated successfully!');
   };
 
-  // Place Order with Commission Tracking
+  // Place Order with Real-time Stock Deduction & Commission Tracking
   const createOrder = async (orderItems, paymentMethod) => {
     const newOrders = orderItems.map(item => {
       const farmerObj = farmers.find(f => f.id === item.farmer_id || f.id === item.farmerId);
@@ -690,14 +684,96 @@ export const AppProvider = ({ children }) => {
     setOrders(prev => [...newOrders, ...prev]);
     clearCart();
 
+    // 1. Real-time Inventory Stock Deduction from Listings
+    const updatedStockEntries = [];
+    setListings(prevListings => {
+      return prevListings.map(listing => {
+        const orderedItem = orderItems.find(oi => oi.id === listing.id);
+        if (orderedItem) {
+          const currentQty = Number(listing.quantity) || 0;
+          const purchasedQty = Number(orderedItem.quantity) || 0;
+          const remainingQty = Math.max(0, currentQty - purchasedQty);
+          const newStatus = remainingQty === 0 ? 'sold_out' : listing.status;
+          updatedStockEntries.push({ id: listing.id, quantity: remainingQty, status: newStatus });
+          return {
+            ...listing,
+            quantity: remainingQty,
+            status: newStatus
+          };
+        }
+        return listing;
+      });
+    });
+
+    // 2. Increment Farmers' Verified Goods Sold count
+    setFarmers(prevFarmers => {
+      return prevFarmers.map(f => {
+        const farmerOrders = orderItems.filter(oi => oi.farmer_id === f.id || oi.farmerId === f.id);
+        if (farmerOrders.length > 0) {
+          const totalUnitsSold = farmerOrders.reduce((sum, oi) => sum + (Number(oi.quantity) || 1), 0);
+          return {
+            ...f,
+            goods_sold: (f.goods_sold || 0) + totalUnitsSold
+          };
+        }
+        return f;
+      });
+    });
+
+    // 3. Persist order & updated inventory in Supabase
     try {
       await supabase.from('orders').insert(newOrders);
     } catch (e) {
       console.warn('Order insert notice:', e);
     }
 
+    for (const update of updatedStockEntries) {
+      try {
+        await supabase
+          .from('listings')
+          .update({ quantity: update.quantity, status: update.status })
+          .eq('id', update.id);
+      } catch (err) {
+        console.warn('Listing stock update notice:', err);
+      }
+    }
+
     showToast('Order confirmed successfully!');
     return newOrders;
+  };
+
+  // Notify Farmer to Restock Sold Out Produce
+  const notifyFarmerToRestock = async (listingId) => {
+    const listing = listings.find(l => l.id === listingId);
+    if (!listing) return;
+
+    const restockAlert = {
+      id: `NOTIF-${Date.now()}`,
+      sender_id: user?.id || 'buyer-customer',
+      sender_name: user?.full_name || 'Interested Buyer',
+      receiver_id: listing.farmer_id,
+      receiver_name: listing.farmer_name,
+      listing_id: listing.id,
+      product_name: listing.product_type,
+      content: `Restock Alert: A customer is trying to purchase "${listing.product_type}" which is currently out of stock. Please restock your inventory!`,
+      created_at: new Date().toISOString(),
+      is_read: false
+    };
+
+    setMessages(prev => [restockAlert, ...prev]);
+
+    try {
+      await supabase.from('messages').insert({
+        id: isValidUUID(restockAlert.id) ? restockAlert.id : generateUUID(),
+        sender_id: (user?.id && isValidUUID(user.id)) ? user.id : null,
+        receiver_id: (listing.farmer_id && isValidUUID(listing.farmer_id)) ? listing.farmer_id : null,
+        content: restockAlert.content
+      });
+    } catch (e) {
+      console.warn('Restock message sync notice:', e);
+    }
+
+    showToast(`Farmer ${listing.farmer_name} has been notified to restock "${listing.product_type}"!`, 'success');
   };
 
   const updateOrderStatus = async (orderId, newStatus) => {
@@ -931,6 +1007,7 @@ export const AppProvider = ({ children }) => {
       deleteListing,
       updateListingStatus,
       updateListingDetails,
+      notifyFarmerToRestock,
       toast,
       showToast
     }}>

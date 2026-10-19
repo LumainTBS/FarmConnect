@@ -2,13 +2,13 @@ import React, { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { 
   ShoppingBag, MessageSquare, MapPin, CheckCircle, Heart, ChevronLeft, 
-  ChevronRight, ArrowLeft 
+  ChevronRight, ArrowLeft, BellRing 
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 export default function ListingDetailPage() {
   const { id } = useParams();
-  const { listings, farmers, addToCart, sendMessage, user } = useApp();
+  const { listings, farmers, addToCart, sendMessage, user, notifyFarmerToRestock } = useApp();
   const navigate = useNavigate();
 
   const listing = listings.find(item => item.id === id);
@@ -34,7 +34,9 @@ export default function ListingDetailPage() {
   const [quantity, setQuantity] = useState(1);
   const [isLiked, setIsLiked] = useState(false);
 
-  const images = listing?.images && listing.images.length > 0
+  const isOutOfStock = !listing || (Number(listing.quantity) <= 0) || listing.status === 'sold_out' || listing.status === 'out_of_stock';
+
+  const images = (listing?.images && listing.images.length > 0)
     ? listing.images
     : ['https://images.unsplash.com/photo-1576045057995-568f588f82fb?auto=format&fit=crop&w=800&q=80'];
 
@@ -47,6 +49,10 @@ export default function ListingDetailPage() {
   };
 
   const handleAddToCart = () => {
+    if (isOutOfStock) {
+      notifyFarmerToRestock(listing.id);
+      return;
+    }
     const success = addToCart(listing, quantity);
     if (!success && !user) {
       navigate('/login');
@@ -83,41 +89,48 @@ export default function ListingDetailPage() {
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4 pb-20 space-y-6">
       
-      {/* Back Button */}
-      <div>
-        <button 
-          onClick={() => navigate(-1)} 
+      {/* Top Breadcrumb & Back */}
+      <div className="flex items-center justify-between">
+        <button
+          onClick={() => navigate(-1)}
           className="inline-flex items-center space-x-1.5 text-xs font-semibold text-slate-600 hover:text-brand-forest transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>Back to marketplace</span>
+          <span>Back to Produce</span>
         </button>
+
+        <div className="text-xs text-slate-400">
+          Home / Marketplace / <span className="text-slate-800 font-medium">{listing.product_type}</span>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+      {/* Main Grid: Left Photos, Right Details */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
         
-        {/* LEFT: IMAGE CAROUSEL (Mobile Swipeable / Desktop Main View) */}
+        {/* LEFT: GALLERY */}
         <div className="space-y-3">
-          <div className="relative aspect-[4/3] rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 shadow-sm">
+          <div className={`relative aspect-4/3 rounded-2xl overflow-hidden border shadow-sm ${
+            isOutOfStock ? 'bg-slate-100 border-slate-300 grayscale opacity-80' : 'bg-slate-100 border-slate-200'
+          }`}>
             <img 
               src={images[activeImageIndex]} 
               alt={listing.product_type} 
               className="w-full h-full object-cover transition-all duration-300" 
             />
 
-            {/* Carousel Controls */}
+            {/* Carousel Arrows */}
             {images.length > 1 && (
               <>
                 <button
                   onClick={handlePrevImage}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 bg-white/80 p-2 rounded-full text-slate-800 hover:bg-white shadow-md transition-colors"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 bg-white/80 p-2 rounded-lg text-slate-800 hover:bg-white shadow-md transition-colors"
                   aria-label="Previous Image"
                 >
                   <ChevronLeft className="w-5 h-5" />
                 </button>
                 <button
                   onClick={handleNextImage}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 bg-white/80 p-2 rounded-full text-slate-800 hover:bg-white shadow-md transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 bg-white/80 p-2 rounded-lg text-slate-800 hover:bg-white shadow-md transition-colors"
                   aria-label="Next Image"
                 >
                   <ChevronRight className="w-5 h-5" />
@@ -128,17 +141,35 @@ export default function ListingDetailPage() {
             {/* Favorite button */}
             <button
               onClick={() => setIsLiked(!isLiked)}
-              className="absolute top-3 right-3 bg-white/90 p-2 rounded-full text-slate-600 hover:text-rose-500 shadow-md transition-colors"
+              className="absolute top-3 right-3 bg-white/90 p-2 rounded-lg text-slate-600 hover:text-rose-500 shadow-md transition-colors"
               aria-label="Save product"
             >
               <Heart className={`w-5 h-5 ${isLiked ? 'fill-rose-500 text-rose-500' : ''}`} />
             </button>
 
-            {/* Status indicator */}
-            <div className="absolute bottom-3 left-3 bg-emerald-950/80 text-white text-xs font-medium px-3 py-1 rounded-full backdrop-blur-xs flex items-center space-x-1.5">
-              <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-              <span>In Stock • {listing.quantity} {listing.unit} available</span>
-            </div>
+            {/* Status indicator (No pill shape, clean modern badge) */}
+            {isOutOfStock ? (
+              <div className="absolute inset-0 bg-slate-950/65 backdrop-blur-[2px] flex flex-col items-center justify-center text-center p-4">
+                <span className="text-xs font-bold uppercase px-3 py-1.5 bg-rose-600 text-white rounded-md tracking-wider shadow-md">
+                  Out of Stock / Sold Out
+                </span>
+                <p className="text-xs text-slate-200 mt-2">
+                  All available harvest has been claimed.
+                </p>
+                <button
+                  onClick={() => notifyFarmerToRestock(listing.id)}
+                  className="mt-3 px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all"
+                >
+                  <BellRing className="w-3.5 h-3.5" />
+                  <span>Notify Farmer to Restock</span>
+                </button>
+              </div>
+            ) : (
+              <div className="absolute bottom-3 left-3 bg-slate-900/90 text-white text-xs font-medium px-3 py-1 rounded-md backdrop-blur-xs flex items-center space-x-1.5">
+                <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+                <span>In Stock • {listing.quantity} {listing.unit} available</span>
+              </div>
+            )}
           </div>
 
           {/* Thumbnail Strip */}
@@ -164,11 +195,11 @@ export default function ListingDetailPage() {
           
           <div className="space-y-2 border-b border-slate-200/80 pb-5">
             <div className="flex items-center space-x-2">
-              <span className="text-xs font-semibold px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 uppercase tracking-wide">
+              <span className="text-xs font-semibold px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-900 uppercase tracking-wide">
                 {listing.category || 'Produce'}
               </span>
               {listing.is_verified && (
-                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-brand-dark/90 text-emerald-300 flex items-center space-x-1">
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-slate-900 text-emerald-400 flex items-center space-x-1">
                   <CheckCircle className="w-3.5 h-3.5" />
                   <span>Verified Seller</span>
                 </span>
@@ -205,38 +236,71 @@ export default function ListingDetailPage() {
           </div>
 
           {/* Quantity Selector */}
-          <div className="space-y-2">
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Quantity ({listing.unit})</label>
-            <div className="inline-flex items-center border border-slate-300 rounded-xl bg-slate-50">
+          {!isOutOfStock ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                  Quantity ({listing.unit})
+                </label>
+                <span className="text-xs text-emerald-700 font-semibold">
+                  {listing.quantity} {listing.unit} available
+                </span>
+              </div>
+              <div className="inline-flex items-center border border-slate-300 rounded-xl bg-slate-50">
+                <button
+                  type="button"
+                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                  className="w-10 h-10 flex items-center justify-center text-slate-700 font-bold hover:bg-slate-200 rounded-l-xl transition-colors"
+                >
+                  -
+                </button>
+                <span className="w-12 text-center text-sm font-bold text-slate-900">
+                  {quantity}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setQuantity(Math.min(Number(listing.quantity) || 999, quantity + 1))}
+                  className="w-10 h-10 flex items-center justify-center text-slate-700 font-bold hover:bg-slate-200 rounded-r-xl transition-colors"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between">
+              <div>
+                <div className="text-xs font-bold text-rose-900">Out of Stock</div>
+                <div className="text-[11px] text-rose-700">This produce has zero items remaining.</div>
+              </div>
               <button
-                type="button"
-                onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                className="w-10 h-10 flex items-center justify-center text-slate-700 font-bold hover:bg-slate-200 rounded-l-xl transition-colors"
+                onClick={() => notifyFarmerToRestock(listing.id)}
+                className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold flex items-center gap-1 shadow-xs"
               >
-                -
-              </button>
-              <span className="w-12 text-center text-sm font-bold text-slate-900">
-                {quantity}
-              </span>
-              <button
-                type="button"
-                onClick={() => setQuantity(quantity + 1)}
-                className="w-10 h-10 flex items-center justify-center text-slate-700 font-bold hover:bg-slate-200 rounded-r-xl transition-colors"
-              >
-                +
+                <BellRing className="w-3.5 h-3.5" />
+                <span>Notify Farmer</span>
               </button>
             </div>
-          </div>
+          )}
 
-          {/* Action Buttons (Hybrid Buying Model) */}
+          {/* Action Buttons */}
           <div className="space-y-3 pt-2">
-            <button
-              onClick={handleAddToCart}
-              className="w-full py-3.5 rounded-xl bg-brand-forest text-white font-bold text-sm hover:bg-brand-dark transition-colors shadow-md flex items-center justify-center space-x-2 cursor-pointer"
-            >
-              <ShoppingBag className="w-5 h-5" />
-              <span>Add to Cart (E{listing.price * quantity})</span>
-            </button>
+            {!isOutOfStock ? (
+              <button
+                onClick={handleAddToCart}
+                className="w-full py-3.5 rounded-xl bg-brand-forest text-white font-bold text-sm hover:bg-brand-dark transition-colors shadow-md flex items-center justify-center space-x-2 cursor-pointer"
+              >
+                <ShoppingBag className="w-5 h-5" />
+                <span>Add to Cart (E{listing.price * quantity})</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => notifyFarmerToRestock(listing.id)}
+                className="w-full py-3.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm transition-colors shadow-md flex items-center justify-center space-x-2 cursor-pointer"
+              >
+                <BellRing className="w-5 h-5" />
+                <span>Request Farmer Restock</span>
+              </button>
+            )}
 
             <button
               onClick={handleContactFarmer}

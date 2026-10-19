@@ -1,19 +1,43 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShoppingBag, MapPin, CheckCircle, ChevronRight, Heart } from 'lucide-react';
+import { ShoppingBag, MapPin, CheckCircle, ChevronRight, Heart, BellRing } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 export default function ProductCard({ listing, layout = 'grid' }) {
-  const { addToCart, user } = useApp();
+  const { addToCart, user, notifyFarmerToRestock } = useApp();
   const navigate = useNavigate();
+  const [clickCount, setClickCount] = useState(0);
 
   if (!listing) return null;
 
+  const isOutOfStock = (Number(listing.quantity) <= 0) || listing.status === 'sold_out' || listing.status === 'out_of_stock';
+
   const handleBuy = (e) => {
     e.preventDefault();
+    if (isOutOfStock) {
+      handleRestockNotify(e);
+      return;
+    }
     const success = addToCart(listing, 1);
     if (!success && !user) {
       navigate('/login');
+    }
+  };
+
+  const handleRestockNotify = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    notifyFarmerToRestock(listing.id);
+  };
+
+  const handleCardClick = () => {
+    if (isOutOfStock) {
+      const next = clickCount + 1;
+      setClickCount(next);
+      if (next >= 2) {
+        notifyFarmerToRestock(listing.id);
+        setClickCount(0);
+      }
     }
   };
 
@@ -23,16 +47,29 @@ export default function ProductCard({ listing, layout = 'grid' }) {
 
   if (layout === 'row') {
     return (
-      <div className="bg-white rounded-xl border border-slate-200/80 p-3 flex items-center gap-3.5 hover:border-emerald-500 transition-colors shadow-sm">
-        <Link to={`/listing/${listing.id}`} className="relative w-24 h-24 rounded-lg overflow-hidden shrink-0 bg-slate-100">
+      <div 
+        onClick={handleCardClick}
+        className={`rounded-xl border p-3 flex items-center gap-3.5 transition-all shadow-xs ${
+          isOutOfStock 
+            ? 'bg-slate-50/90 border-slate-300 opacity-70 grayscale' 
+            : 'bg-white border-slate-200/80 hover:border-emerald-500'
+        }`}
+      >
+        <Link to={`/listing/${listing.id}`} className="relative w-24 h-24 rounded-lg overflow-hidden shrink-0 bg-slate-100 block">
           <img 
             src={imageSrc} 
             alt={listing.product_type} 
             className="w-full h-full object-cover" 
             loading="lazy"
           />
-          {listing.is_verified && (
-            <div className="absolute top-1 left-1 bg-brand-dark/90 text-emerald-400 p-1 rounded-full">
+          {isOutOfStock ? (
+            <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center p-1">
+              <span className="text-[10px] font-bold text-white uppercase tracking-wider text-center">
+                Out of Stock
+              </span>
+            </div>
+          ) : listing.is_verified && (
+            <div className="absolute top-1 left-1 bg-slate-900/90 text-emerald-400 p-1 rounded-md">
               <CheckCircle className="w-3 h-3" />
             </div>
           )}
@@ -40,7 +77,7 @@ export default function ProductCard({ listing, layout = 'grid' }) {
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-1 mb-1">
-            <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 uppercase tracking-wide">
+            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-900 uppercase tracking-wide">
               {listing.category || 'Produce'}
             </span>
             <button className="text-slate-400 hover:text-rose-500 p-1" aria-label="Save listing">
@@ -66,13 +103,24 @@ export default function ProductCard({ listing, layout = 'grid' }) {
               E{listing.price}<span className="text-xs text-slate-500 font-normal">/{listing.unit}</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <button 
-                onClick={handleBuy}
-                className="bg-brand-forest text-white p-1.5 rounded-lg hover:bg-brand-dark transition-colors flex items-center gap-1 text-xs font-medium px-2.5"
-              >
-                <ShoppingBag className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Add</span>
-              </button>
+              {isOutOfStock ? (
+                <button 
+                  onClick={handleRestockNotify}
+                  title="Notify farmer to restock"
+                  className="bg-amber-500 hover:bg-amber-600 text-white p-1.5 rounded-lg transition-colors flex items-center gap-1 text-xs font-semibold px-2.5 shadow-xs"
+                >
+                  <BellRing className="w-3.5 h-3.5" />
+                  <span>Restock Alert</span>
+                </button>
+              ) : (
+                <button 
+                  onClick={handleBuy}
+                  className="bg-brand-forest text-white p-1.5 rounded-lg hover:bg-brand-dark transition-colors flex items-center gap-1 text-xs font-medium px-2.5 shadow-xs"
+                >
+                  <ShoppingBag className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Add</span>
+                </button>
+              )}
               <Link to={`/listing/${listing.id}`} className="text-slate-400 hover:text-slate-700 p-1">
                 <ChevronRight className="w-4 h-4" />
               </Link>
@@ -84,7 +132,14 @@ export default function ProductCard({ listing, layout = 'grid' }) {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200/80 overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col h-full group">
+    <div 
+      onClick={handleCardClick}
+      className={`rounded-xl border overflow-hidden shadow-xs flex flex-col h-full group transition-all ${
+        isOutOfStock 
+          ? 'bg-slate-50/90 border-slate-300 opacity-70 grayscale' 
+          : 'bg-white border-slate-200/80 hover:shadow-md'
+      }`}
+    >
       {/* Product Image */}
       <div className="relative aspect-[4/3] w-full overflow-hidden bg-slate-100">
         <Link to={`/listing/${listing.id}`} className="block w-full h-full">
@@ -95,19 +150,37 @@ export default function ProductCard({ listing, layout = 'grid' }) {
             loading="lazy"
           />
         </Link>
-        <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
-          <span className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-white/95 text-slate-800 shadow-sm backdrop-blur-sm">
-            {listing.category ? listing.category.charAt(0).toUpperCase() + listing.category.slice(1) : 'Agricultural'}
-          </span>
-        </div>
+
+        {isOutOfStock ? (
+          <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-[1px] flex flex-col items-center justify-center p-3 text-center">
+            <span className="px-2.5 py-1 rounded-md bg-rose-600 text-white text-[11px] font-bold uppercase tracking-wider shadow-sm">
+              Sold Out / Out of Stock
+            </span>
+            <button
+              onClick={handleRestockNotify}
+              className="mt-2 text-[10px] font-bold text-amber-300 hover:text-amber-200 underline flex items-center gap-1"
+            >
+              <BellRing className="w-3 h-3" />
+              <span>Tap to notify farmer</span>
+            </button>
+          </div>
+        ) : (
+          <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
+            <span className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-white/95 text-slate-800 shadow-xs backdrop-blur-sm">
+              {listing.category ? listing.category.charAt(0).toUpperCase() + listing.category.slice(1) : 'Agricultural'}
+            </span>
+          </div>
+        )}
+
         <button 
-          className="absolute top-2.5 right-2.5 bg-white/90 p-1.5 rounded-full text-slate-600 hover:text-rose-500 shadow-sm transition-colors"
+          className="absolute top-2.5 right-2.5 bg-white/90 p-1.5 rounded-lg text-slate-600 hover:text-rose-500 shadow-xs transition-colors"
           aria-label="Save product"
         >
           <Heart className="w-4 h-4" />
         </button>
-        {listing.is_verified && (
-          <div className="absolute bottom-2.5 left-2.5 bg-brand-dark/90 text-white text-[11px] font-medium px-2 py-0.5 rounded flex items-center gap-1 backdrop-blur-sm">
+
+        {listing.is_verified && !isOutOfStock && (
+          <div className="absolute bottom-2.5 left-2.5 bg-slate-900/90 text-white text-[11px] font-medium px-2 py-0.5 rounded-md flex items-center gap-1 backdrop-blur-sm">
             <CheckCircle className="w-3 h-3 text-emerald-400" />
             <span>Verified Seller</span>
           </div>
@@ -144,13 +217,25 @@ export default function ProductCard({ listing, layout = 'grid' }) {
             >
               Details
             </Link>
-            <button
-              onClick={handleBuy}
-              className="text-xs font-semibold px-3.5 py-2 rounded-lg bg-brand-forest text-white hover:bg-brand-dark transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
-            >
-              <ShoppingBag className="w-3.5 h-3.5" />
-              <span>Buy</span>
-            </button>
+
+            {isOutOfStock ? (
+              <button
+                onClick={handleRestockNotify}
+                title="Send restock request to farmer"
+                className="text-xs font-semibold px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
+              >
+                <BellRing className="w-3.5 h-3.5" />
+                <span>Restock</span>
+              </button>
+            ) : (
+              <button
+                onClick={handleBuy}
+                className="text-xs font-semibold px-3.5 py-2 rounded-lg bg-brand-forest text-white hover:bg-brand-dark transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
+              >
+                <ShoppingBag className="w-3.5 h-3.5" />
+                <span>Buy</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
