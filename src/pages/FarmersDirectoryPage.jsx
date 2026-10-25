@@ -1,9 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Search, MapPin, CheckCircle, Star, ArrowRight, ShieldCheck, 
   Sparkles, X, ChevronRight, Sprout, Wheat, Egg, Beef, Apple,
-  Compass, Award
+  Compass, Award, LayoutGrid, List
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
@@ -33,6 +33,12 @@ export default function FarmersDirectoryPage() {
   const [selectedSpecialty, setSelectedSpecialty] = useState('all');
   const [selectedRegion, setSelectedRegion] = useState('all');
   const [visibleResultsCount, setVisibleResultsCount] = useState(4);
+  const [viewMode, setViewMode] = useState(() => localStorage.getItem('farmconnect_farmers_view') || 'grid');
+
+  // Persist view preference
+  useEffect(() => {
+    localStorage.setItem('farmconnect_farmers_view', viewMode);
+  }, [viewMode]);
 
   // User's registered area (if available)
   const userArea = user?.inkhundla || user?.street_address || user?.location || '';
@@ -129,17 +135,47 @@ export default function FarmersDirectoryPage() {
       
       {/* 1. MINIMALIST LIQUID-GLASS HEADER & SEARCH HUB */}
       <section className="relative overflow-hidden rounded-3xl bg-gradient-to-b from-white/95 to-slate-50/80 border border-slate-200/80 p-5 sm:p-8 shadow-xs backdrop-blur-md">
-        <div className="max-w-2xl">
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50/80 border border-emerald-200/60 text-emerald-900 text-[11px] font-semibold mb-2.5 backdrop-blur-xs">
-            <Compass className="w-3.5 h-3.5 text-emerald-700" />
-            <span>Smart Producer Discovery</span>
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+          <div className="max-w-2xl">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50/80 border border-emerald-200/60 text-emerald-900 text-[11px] font-semibold mb-2.5 backdrop-blur-xs">
+              <Compass className="w-3.5 h-3.5 text-emerald-700" />
+              <span>Smart Producer Discovery</span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
+              Farmers Directory
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed">
+              Connect directly with verified local growers in your area without scrolling through endless clutter.
+            </p>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
-            Farmers Directory
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed">
-            Connect directly with verified local growers in your area without scrolling through endless clutter.
-          </p>
+
+          {/* VIEW MODE TOGGLE (GRID vs LIST) FOR FARMERS DIRECTORY */}
+          <div className="flex items-center self-start bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0">
+            <button
+              onClick={() => setViewMode('grid')}
+              title="Grid View"
+              className={`p-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1 text-xs ${
+                viewMode === 'grid' 
+                  ? 'bg-white text-brand-forest shadow-xs font-semibold' 
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <LayoutGrid className="w-4 h-4" />
+              <span className="hidden sm:inline">Grid</span>
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              title="List View"
+              className={`p-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1 text-xs ${
+                viewMode === 'list' 
+                  ? 'bg-white text-brand-forest shadow-xs font-semibold' 
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <List className="w-4 h-4" />
+              <span className="hidden sm:inline">List</span>
+            </button>
+          </div>
         </div>
 
         {/* Minimalist Search Input */}
@@ -275,12 +311,19 @@ export default function FarmersDirectoryPage() {
 
           {filteredFarmers.length > 0 ? (
             <div className="space-y-6">
-              {/* 4 CARDS PER ROW ON DESKTOP, 2 PER ROW ON MOBILE */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                {filteredFarmers.slice(0, visibleResultsCount).map((farmer) => (
-                  <FarmerCard key={farmer.id} farmer={farmer} />
-                ))}
-              </div>
+              {viewMode === 'list' ? (
+                <div className="space-y-3">
+                  {filteredFarmers.slice(0, visibleResultsCount).map((farmer) => (
+                    <FarmerCard key={farmer.id} farmer={farmer} layout="list" />
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                  {filteredFarmers.slice(0, visibleResultsCount).map((farmer) => (
+                    <FarmerCard key={farmer.id} farmer={farmer} layout="grid" />
+                  ))}
+                </div>
+              )}
 
               {/* Show 4 more to avoid dumping 100+ cards */}
               {filteredFarmers.length > visibleResultsCount && (
@@ -313,7 +356,7 @@ export default function FarmersDirectoryPage() {
           )}
         </section>
       ) : (
-        /* DEFAULT CURATED MINIMALIST VIEW: TWO ROWS OF 4 TOPS */
+        /* DEFAULT CURATED MINIMALIST VIEW: ROWS OF 4 TOPS */
         <>
           {/* ROW 1: TOP 4 CERTIFIED FARMERS (Row of 4 tops) */}
           <section className="space-y-3">
@@ -339,12 +382,20 @@ export default function FarmersDirectoryPage() {
               </Link>
             </div>
 
-            {/* Exactly 4 tops per row on desktop, 2 per row on mobile */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-              {topFourFarmers.map((farmer) => (
-                <FarmerCard key={farmer.id} farmer={farmer} />
-              ))}
-            </div>
+            {/* Exactly 4 tops rendered in Grid or List */}
+            {viewMode === 'list' ? (
+              <div className="space-y-3">
+                {topFourFarmers.map((farmer) => (
+                  <FarmerCard key={farmer.id} farmer={farmer} layout="list" />
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                {topFourFarmers.map((farmer) => (
+                  <FarmerCard key={farmer.id} farmer={farmer} layout="grid" />
+                ))}
+              </div>
+            )}
           </section>
 
           {/* ROW 2: SUGGESTED FARMERS IN YOUR AREA (Row of 4 tops) */}
@@ -366,12 +417,20 @@ export default function FarmersDirectoryPage() {
               </div>
             </div>
 
-            {/* Exactly 4 tops per row on desktop, 2 per row on mobile */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-              {suggestedByArea.map((farmer) => (
-                <FarmerCard key={farmer.id} farmer={farmer} />
-              ))}
-            </div>
+            {/* Exactly 4 tops rendered in Grid or List */}
+            {viewMode === 'list' ? (
+              <div className="space-y-3">
+                {suggestedByArea.map((farmer) => (
+                  <FarmerCard key={farmer.id} farmer={farmer} layout="list" />
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                {suggestedByArea.map((farmer) => (
+                  <FarmerCard key={farmer.id} farmer={farmer} layout="grid" />
+                ))}
+              </div>
+            )}
           </section>
         </>
       )}
@@ -380,8 +439,70 @@ export default function FarmersDirectoryPage() {
   );
 }
 
-// COMPACT, MINIMALIST LIQUID-GLASS FARMER CARD
-function FarmerCard({ farmer }) {
+// LIQUID-GLASS FARMER CARD (SUPPORTS GRID & LIST LAYOUTS)
+function FarmerCard({ farmer, layout = 'grid' }) {
+  // LIST FORMAT FOR FARMERS
+  if (layout === 'list') {
+    return (
+      <div className="group rounded-2xl border border-slate-200/80 bg-white/90 backdrop-blur-xs hover:border-emerald-500/40 hover:shadow-md transition-all duration-300 p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+        <div className="flex items-center gap-3.5 min-w-0">
+          <div className="relative shrink-0">
+            <img
+              src={farmer.avatar}
+              alt={farmer.name}
+              className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover border-2 border-white shadow-xs bg-white"
+              loading="lazy"
+            />
+            {farmer.is_verified && (
+              <span className="absolute -bottom-1 -right-1 bg-emerald-600 text-white p-0.5 rounded-full shadow-xs">
+                <CheckCircle className="w-3.5 h-3.5" />
+              </span>
+            )}
+          </div>
+
+          <div className="flex-1 min-w-0 space-y-1">
+            <div className="flex items-center gap-2">
+              <h3 className="font-bold text-slate-900 text-sm sm:text-base truncate group-hover:text-brand-forest transition-colors">
+                {farmer.name}
+              </h3>
+              <div className="flex items-center space-x-0.5 bg-amber-50 text-amber-900 border border-amber-200/60 px-1.5 py-0.2 rounded-md text-[10px] font-bold">
+                <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                <span>{farmer.rating || 5.0}</span>
+              </div>
+            </div>
+
+            <div className="text-[11px] sm:text-xs text-slate-500 flex items-center space-x-1 truncate">
+              <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span className="truncate">{farmer.location || farmer.inkhundla || 'Eswatini'}</span>
+            </div>
+
+            <div className="flex flex-wrap gap-1 pt-0.5">
+              {(farmer.tags || ['Produce', 'Direct Harvest']).map((tag, idx) => (
+                <span
+                  key={idx}
+                  className="text-[10px] font-medium bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100 shrink-0">
+          <Link
+            to={`/farmer/${farmer.id}`}
+            className="h-8 px-4 rounded-xl bg-brand-forest hover:bg-brand-dark text-white text-xs font-semibold transition-all flex items-center justify-center space-x-1.5 shadow-xs"
+          >
+            <span>View Farm Profile</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // GRID FORMAT FOR FARMERS (2 on mobile, 4 on desktop)
   return (
     <div className="group rounded-2xl border border-slate-200/80 bg-white/90 backdrop-blur-xs hover:border-emerald-500/40 hover:shadow-md transition-all duration-300 overflow-hidden flex flex-col justify-between h-full">
       {/* Cover Banner */}

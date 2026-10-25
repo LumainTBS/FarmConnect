@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { Search, Filter, SlidersHorizontal, X, MapPin, ArrowUpDown, ChevronRight } from 'lucide-react';
+import { Search, Filter, SlidersHorizontal, X, MapPin, ArrowUpDown, ChevronRight, LayoutGrid, List } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { PRODUCT_CATEGORIES } from '../lib/supabase';
 import ProductCard from '../components/ProductCard';
@@ -17,6 +17,13 @@ export default function MarketplacePage() {
   const [selectedLocation, setSelectedLocation] = useState('all');
   const [sortBy, setSortBy] = useState('newest'); // 'newest' | 'price-low' | 'price-high'
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
+  const [showOutOfStock, setShowOutOfStock] = useState(false);
+  const [viewMode, setViewMode] = useState(() => localStorage.getItem('farmconnect_marketplace_view') || 'grid');
+
+  // Persist viewMode preference
+  useEffect(() => {
+    localStorage.setItem('farmconnect_marketplace_view', viewMode);
+  }, [viewMode]);
 
   // Sync state if URL changes
   React.useEffect(() => {
@@ -24,9 +31,18 @@ export default function MarketplacePage() {
     setSelectedCategory(categoryFromUrl);
   }, [searchFromUrl, categoryFromUrl]);
 
+  // Count sold out listings
+  const soldOutCount = useMemo(() => {
+    return listings.filter(item => (Number(item.quantity) <= 0) || item.status === 'sold_out' || item.status === 'out_of_stock').length;
+  }, [listings]);
+
   // Filter & Sort Logic
   const filteredListings = useMemo(() => {
     return listings.filter(item => {
+      // Out of stock filter: hide by default on refresh/visit unless toggled
+      const isOutOfStock = (Number(item.quantity) <= 0) || item.status === 'sold_out' || item.status === 'out_of_stock';
+      if (!showOutOfStock && isOutOfStock) return false;
+
       // Search term
       if (searchTerm) {
         const query = searchTerm.toLowerCase();
@@ -60,7 +76,7 @@ export default function MarketplacePage() {
       if (sortBy === 'price-high') return b.price - a.price;
       return new Date(b.created_at || 0) - new Date(a.created_at || 0);
     });
-  }, [listings, searchTerm, selectedCategory, selectedLocation, sortBy]);
+  }, [listings, searchTerm, selectedCategory, selectedLocation, sortBy, showOutOfStock]);
 
   const handleCategorySelect = (catId) => {
     setSelectedCategory(catId);
@@ -122,56 +138,99 @@ export default function MarketplacePage() {
         })}
       </div>
 
-      {/* Filter Strip & Sort Controls */}
-      <div className="flex items-center justify-between gap-2 bg-white p-3 rounded-xl border border-slate-200/80 shadow-xs">
+      {/* Filter Strip, Sort & View Controls */}
+      <div className="flex flex-wrap items-center justify-between gap-2.5 bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
         
-        {/* Mobile Filter Button */}
-        <button
-          onClick={() => setIsFilterDrawerOpen(true)}
-          className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-semibold hover:bg-slate-200 transition-colors"
-        >
-          <SlidersHorizontal className="w-3.5 h-3.5 text-brand-forest" />
-          <span>Filters</span>
-          {(selectedCategory !== 'all' || selectedLocation !== 'all') && (
-            <span className="w-2 h-2 bg-brand-forest rounded-full" />
-          )}
-        </button>
-
-        {/* Location Selector (Desktop/Tablet) */}
-        <div className="hidden sm:flex items-center space-x-2 text-xs">
-          <span className="text-slate-400">Location:</span>
-          <select
-            value={selectedLocation}
-            onChange={(e) => setSelectedLocation(e.target.value)}
-            className="bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1 text-slate-800 font-medium focus:outline-none"
+        <div className="flex items-center gap-2">
+          {/* Mobile Filter Button */}
+          <button
+            onClick={() => setIsFilterDrawerOpen(true)}
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 text-xs font-semibold hover:bg-slate-200 transition-colors"
           >
-            <option value="all">All Eswatini Regions</option>
-            <option value="manzini">Manzini Region</option>
-            <option value="mbabane">Mbabane / Hhohho</option>
-            <option value="piggs peak">Piggs Peak</option>
-            <option value="malkerns">Malkerns Valley</option>
-          </select>
+            <SlidersHorizontal className="w-3.5 h-3.5 text-brand-forest" />
+            <span>Filters</span>
+            {(selectedCategory !== 'all' || selectedLocation !== 'all') && (
+              <span className="w-2 h-2 bg-brand-forest rounded-full" />
+            )}
+          </button>
+
+          {/* Location Selector (Desktop/Tablet) */}
+          <div className="hidden sm:flex items-center space-x-1.5 text-xs">
+            <span className="text-slate-400">Location:</span>
+            <select
+              value={selectedLocation}
+              onChange={(e) => setSelectedLocation(e.target.value)}
+              className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1 text-slate-800 font-medium focus:outline-none"
+            >
+              <option value="all">All Eswatini Regions</option>
+              <option value="manzini">Manzini Region</option>
+              <option value="mbabane">Mbabane / Hhohho</option>
+              <option value="piggs peak">Piggs Peak</option>
+              <option value="malkerns">Malkerns Valley</option>
+            </select>
+          </div>
         </div>
 
-        {/* Sort Selector */}
-        <div className="flex items-center space-x-1 text-xs">
-          <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 hidden sm:block" />
-          <span className="text-slate-400 hidden sm:inline">Sort:</span>
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className="bg-slate-50 border border-slate-300 rounded-lg px-2 py-1 text-slate-800 font-medium focus:outline-none"
-          >
-            <option value="newest">Newest First</option>
-            <option value="price-low">Price: Low to High</option>
-            <option value="price-high">Price: High to Low</option>
-          </select>
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* Sort Selector */}
+          <div className="flex items-center space-x-1 text-xs">
+            <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 hidden sm:block" />
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="bg-slate-50 border border-slate-200 rounded-xl px-2 py-1 text-slate-800 font-medium focus:outline-none text-xs"
+            >
+              <option value="newest">Newest First</option>
+              <option value="price-low">Price: Low to High</option>
+              <option value="price-high">Price: High to Low</option>
+            </select>
+          </div>
+
+          {/* VIEW MODE TOGGLE (GRID vs LIST) FOR MOBILE & DESKTOP */}
+          <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200">
+            <button
+              onClick={() => setViewMode('grid')}
+              title="Grid View (Compact)"
+              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                viewMode === 'grid' 
+                  ? 'bg-white text-brand-forest shadow-xs font-semibold' 
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              title="List View (Full Details)"
+              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                viewMode === 'list' 
+                  ? 'bg-white text-brand-forest shadow-xs font-semibold' 
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <List className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Results Count Header */}
-      <div className="text-xs text-slate-500 font-medium flex items-center justify-between">
-        <span>Showing {filteredListings.length} produce listings</span>
+      {/* Results Count Header & Sold Out Toggle */}
+      <div className="text-xs text-slate-500 font-medium flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span>Showing {filteredListings.length} produce listings ({viewMode === 'grid' ? 'Grid View' : 'List View'})</span>
+          {soldOutCount > 0 && (
+            <button
+              onClick={() => setShowOutOfStock(prev => !prev)}
+              className={`text-[11px] px-2 py-0.5 rounded-lg border transition-colors cursor-pointer ${
+                showOutOfStock 
+                  ? 'bg-rose-50 border-rose-300 text-rose-700 font-semibold' 
+                  : 'bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              {showOutOfStock ? 'Hide Sold Out' : `Show Sold Out (${soldOutCount})`}
+            </button>
+          )}
+        </div>
         {(searchTerm || selectedCategory !== 'all' || selectedLocation !== 'all') && (
           <button
             onClick={() => {
@@ -186,13 +245,21 @@ export default function MarketplacePage() {
         )}
       </div>
 
-      {/* PRODUCT LISTINGS GRID - 2 per row on mobile, 4-5 on desktop */}
+      {/* PRODUCT LISTINGS (GRID OR LIST VIEW) */}
       {filteredListings.length > 0 ? (
-        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
-          {filteredListings.map((listing) => (
-            <ProductCard key={listing.id} listing={listing} />
-          ))}
-        </div>
+        viewMode === 'list' ? (
+          <div className="space-y-3">
+            {filteredListings.map((listing) => (
+              <ProductCard key={listing.id} listing={listing} layout="list" autoHide={true} />
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
+            {filteredListings.map((listing) => (
+              <ProductCard key={listing.id} listing={listing} layout="grid" autoHide={true} />
+            ))}
+          </div>
+        )
       ) : (
         /* Empty State */
         <div className="bg-white rounded-2xl border border-slate-200/80 p-12 text-center max-w-md mx-auto my-8 space-y-4">

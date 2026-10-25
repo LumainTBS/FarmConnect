@@ -1,15 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Package, PlusCircle, Sprout, TrendingUp, MessageSquare, 
-  CheckCircle, ArrowUpRight, DollarSign, Clock, Edit3, ArrowRight
+  CheckCircle, ArrowUpRight, DollarSign, Clock, Edit3, ArrowRight,
+  AlertTriangle, ShieldCheck, Bell, RotateCcw
 } from 'lucide-react';
-import { AlertTriangle, ShieldCheck } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { isFarmerListing, isFarmerOrder } from '../lib/supabase';
 
 export default function FarmerDashboardPage() {
-  const { user, listings, orders, plantLogs, updateListingStatus } = useApp();
+  const { user, listings, orders, plantLogs, updateListingStatus, updateListingDetails, restockAlerts, dismissRestockAlert } = useApp();
 
   const farmerListings = listings.filter(l => isFarmerListing(l, user));
   const farmerOrders = orders.filter(o => isFarmerOrder(o, user));
@@ -20,9 +20,45 @@ export default function FarmerDashboardPage() {
 
   const pendingOrders = farmerOrders.filter(o => o.order_status === 'pending');
 
+  // Restock alerts for this farmer
+  const farmerRestockAlerts = (restockAlerts || []).filter(a => 
+    (a.farmer_id === user?.id || a.farmer_id === user?.farmer_id || a.farmer_name?.toLowerCase() === user?.full_name?.toLowerCase() || a.receiver_id === user?.id)
+  );
+
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4 pb-20 space-y-6">
       
+      {/* RESTOCK ALERTS BANNER FROM BUYERS */}
+      {farmerRestockAlerts.length > 0 && (
+        <div className="bg-amber-50 border border-amber-300 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-start sm:items-center space-x-3">
+            <div className="p-2 bg-amber-500 text-white rounded-xl shrink-0 shadow-xs">
+              <Bell className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-amber-950">
+                Buyer Restock Requests ({farmerRestockAlerts.length})
+              </h2>
+              <p className="text-xs text-amber-800 mt-0.5">
+                Buyers have requested restock for:{' '}
+                <span className="font-bold underline">
+                  {farmerRestockAlerts.map(a => a.product_name).join(', ')}
+                </span>
+                . Add inventory to make them visible again in the marketplace.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <a
+              href="#active-listings"
+              className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl text-center whitespace-nowrap transition-colors shadow-xs"
+            >
+              Restock Below
+            </a>
+          </div>
+        </div>
+      )}
+
       {/* ONBOARDING ALERT: INKHUNDLA LOCATION MISSING */}
       {(!user?.inkhundla || user?.inkhundla.trim() === '') && (
         <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
@@ -215,7 +251,7 @@ export default function FarmerDashboardPage() {
       </div>
 
       {/* MY ACTIVE PRODUCE LISTINGS SECTION */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 p-5 space-y-4 shadow-xs">
+      <div id="active-listings" className="bg-white rounded-2xl border border-slate-200/90 p-5 space-y-4 shadow-xs">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div>
             <h2 className="font-bold text-slate-900 text-base">My Active Produce Listings</h2>
@@ -232,7 +268,11 @@ export default function FarmerDashboardPage() {
             {farmerListings.map((listing) => (
               <div 
                 key={listing.id} 
-                className="p-3.5 rounded-xl border border-slate-200 flex items-center justify-between gap-3 hover:border-emerald-300 transition-colors"
+                className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors ${
+                  Number(listing.quantity) <= 0 
+                    ? 'border-amber-300 bg-amber-50/40' 
+                    : 'border-slate-200 hover:border-emerald-300'
+                }`}
               >
                 <div className="flex items-center space-x-3">
                   <img
@@ -243,7 +283,10 @@ export default function FarmerDashboardPage() {
                   <div>
                     <h3 className="font-bold text-xs text-slate-900">{listing.product_type}</h3>
                     <div className="text-xs text-brand-forest font-semibold mt-0.5">
-                      E{listing.price}/{listing.unit} <span className="text-slate-400 font-normal">({listing.quantity} {listing.unit} left)</span>
+                      E{listing.price}/{listing.unit}{' '}
+                      <span className={Number(listing.quantity) <= 0 ? 'text-rose-600 font-bold' : 'text-slate-400 font-normal'}>
+                        ({listing.quantity} {listing.unit} left)
+                      </span>
                     </div>
                     <div className="text-[10px] text-slate-400 mt-0.5">
                       Harvest: {listing.harvest_date || 'Recent'}
@@ -267,6 +310,30 @@ export default function FarmerDashboardPage() {
                     <option value="reserved">Reserved</option>
                     <option value="sold">Sold</option>
                   </select>
+
+                  {/* QUICK RESTOCK BUTTON FOR 0 QUANTITY */}
+                  {Number(listing.quantity) <= 0 && (
+                    <div className="flex items-center gap-1 mt-1">
+                      <input
+                        type="number"
+                        min="1"
+                        id={`quick-restock-${listing.id}`}
+                        defaultValue={20}
+                        className="w-14 h-6 text-[11px] text-center font-bold border border-slate-300 rounded bg-white"
+                        placeholder="Qty"
+                      />
+                      <button
+                        onClick={() => {
+                          const val = document.getElementById(`quick-restock-${listing.id}`)?.value;
+                          const newQty = Number(val) || 20;
+                          updateListingDetails(listing.id, { quantity: newQty, status: 'available' });
+                        }}
+                        className="h-6 px-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold rounded cursor-pointer shadow-xs"
+                      >
+                        Restock
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

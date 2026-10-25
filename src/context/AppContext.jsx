@@ -237,6 +237,18 @@ export const AppProvider = ({ children }) => {
     ];
   });
 
+  // Restock Notification Tracking (Rate-limited to 2 attempts overall per product)
+  const [restockAttempts, setRestockAttempts] = useState(() => {
+    const saved = localStorage.getItem('farmconnect_restock_attempts');
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  // Farmer Restock Alerts (Displays in Farmer Command Center and Header Badge)
+  const [restockAlerts, setRestockAlerts] = useState(() => {
+    const saved = localStorage.getItem('farmconnect_restock_alerts');
+    return saved ? JSON.parse(saved) : [];
+  });
+
   // Subscription Payments Ledger (Platform revenue tracking)
   const [subscriptionPayments, setSubscriptionPayments] = useState(() => {
     const saved = localStorage.getItem('farmconnect_subscription_payments');
@@ -451,6 +463,14 @@ export const AppProvider = ({ children }) => {
     localStorage.setItem('farmconnect_plantlogs', JSON.stringify(plantLogs));
   }, [plantLogs]);
 
+  useEffect(() => {
+    localStorage.setItem('farmconnect_restock_attempts', JSON.stringify(restockAttempts));
+  }, [restockAttempts]);
+
+  useEffect(() => {
+    localStorage.setItem('farmconnect_restock_alerts', JSON.stringify(restockAlerts));
+  }, [restockAlerts]);
+
   // Auth functions
   const loginUser = (userData) => {
     const updatedUser = {
@@ -516,25 +536,50 @@ export const AppProvider = ({ children }) => {
     showToast('Profile updated successfully!');
   };
 
-  // Cart functions with Auth check
+  // Cart functions with Auth check and STRICT STOCK VALIDATION
   const addToCart = (listing, qty = 1) => {
     if (!user) {
       showToast('Please log in or register to buy products', 'info');
       return false;
     }
 
+    const availableStock = Number(listing.quantity) || 0;
+    const isOutOfStock = availableStock <= 0 || listing.status === 'sold_out' || listing.status === 'out_of_stock';
+
+    if (isOutOfStock) {
+      showToast(`"${listing.product_type}" is currently out of stock. Cannot add to cart.`, 'error');
+      return false;
+    }
+
+    // Check how many are currently in cart
+    const existing = cart.find(item => item.id === listing.id);
+    const currentInCart = existing ? existing.quantity : 0;
+
+    if (currentInCart >= availableStock) {
+      showToast(`Only ${availableStock} in stock. You already have all available items in your cart!`, 'error');
+      return false;
+    }
+
+    // Calculate how many more can be added
+    const allowedToAdd = Math.min(qty, availableStock - currentInCart);
+    if (allowedToAdd <= 0) {
+      showToast(`Cannot add more than ${availableStock} ${listing.unit || 'units'} available in stock.`, 'error');
+      return false;
+    }
+
     setCart(prevCart => {
-      const existing = prevCart.find(item => item.id === listing.id);
-      if (existing) {
+      const existingItem = prevCart.find(item => item.id === listing.id);
+      if (existingItem) {
         return prevCart.map(item =>
           item.id === listing.id
-            ? { ...item, quantity: item.quantity + qty }
+            ? { ...item, quantity: item.quantity + allowedToAdd }
             : item
         );
       }
-      return [...prevCart, { ...listing, quantity: qty }];
+      return [...prevCart, { ...listing, quantity: allowedToAdd }];
     });
-    showToast(`Added ${listing.product_type} to your cart`);
+
+    showToast(`Added ${listing.product_type} to cart (${currentInCart + allowedToAdd}/${availableStock} in stock)`);
     return true;
   };
 
@@ -548,6 +593,15 @@ export const AppProvider = ({ children }) => {
       removeFromCart(listingId);
       return;
     }
+
+    const listing = listings.find(l => l.id === listingId);
+    const availableStock = listing ? (Number(listing.quantity) || 0) : 999;
+
+    if (newQty > availableStock) {
+      showToast(`Only ${availableStock} available in stock`, 'error');
+      return;
+    }
+
     setCart(prev => prev.map(item =>
       item.id === listingId ? { ...item, quantity: newQty } : item
     ));
@@ -635,6 +689,17 @@ export const AppProvider = ({ children }) => {
   };
 
   const updateListingDetails = async (listingId, updatedFields) => {
+    // If quantity is updated to > 0, reset restock attempts and clear alert
+    if (updatedFields.quantity && Number(updatedFields.quantity) > 0) {
+      updatedFields.status = 'available';
+      setRestockAttempts(prev => {
+        const next = { ...prev };
+        delete next[listingId];
+        return next;
+      });
+      setRestockAlerts(prev => prev.filter(a => a.listing_id !== listingId));
+    }
+
     setListings(prev => prev.map(item =>
       item.id === listingId ? { ...item, ...updatedFields } : item
     ));
@@ -742,12 +807,39 @@ export const AppProvider = ({ children }) => {
     return newOrders;
   };
 
-  // Notify Farmer to Restock Sold Out Produce
+  // Notify Farmer to Restock Sold Out Produce (Max 2 attempts overall)
   const notifyFarmerToRestock = async (listingId) => {
     const listing = listings.find(l => l.id === listingId);
-    if (!listing) return;
+    if (!listing) return { success: false, attempts: 0 };
 
-    const restockAlert = {
+    const currentAttempts = restockAttempts[listingId] || 0;
+    if (currentAttempts >= 2) {
+      showToast(`Farmer ${listing.farmer_name} has already received 2 restock notifications for "${listing.product_type}". Please wait for the farmer to update stock.`, 'info');
+      return { success: false, attempts: 2 };
+    }
+
+    const newAttempts = currentAttempts + 1;
+    setRestockAttempts(prev => ({ ...prev, [listingId]: newAttempts }));
+
+    // Create restock alert for Farmer Command Center and notification badge
+    const alertId = `ALERT-${Date.now()}`;
+    const newAlert = {
+      id: alertId,
+      listing_id: listing.id,
+      product_name: listing.product_type,
+      farmer_id: listing.farmer_id,
+      farmer_name: listing.farmer_name,
+      buyer_id: user?.id || 'guest-buyer',
+      buyer_name: user?.full_name || 'Interested Buyer',
+      created_at: new Date().toISOString(),
+      attempt: newAttempts,
+      is_read: false
+    };
+
+    setRestockAlerts(prev => [newAlert, ...prev]);
+
+    // Send direct restock notification message
+    const restockMessage = {
       id: `NOTIF-${Date.now()}`,
       sender_id: user?.id || 'buyer-customer',
       sender_name: user?.full_name || 'Interested Buyer',
@@ -755,25 +847,34 @@ export const AppProvider = ({ children }) => {
       receiver_name: listing.farmer_name,
       listing_id: listing.id,
       product_name: listing.product_type,
-      content: `Restock Alert: A customer is trying to purchase "${listing.product_type}" which is currently out of stock. Please restock your inventory!`,
+      content: `[RESTOCK ALERT #${newAttempts}/2]: A buyer is requesting "${listing.product_type}" which is out of stock! Please restock this produce in your Farmer Dashboard.`,
       created_at: new Date().toISOString(),
       is_read: false
     };
 
-    setMessages(prev => [restockAlert, ...prev]);
+    setMessages(prev => [restockMessage, ...prev]);
 
     try {
       await supabase.from('messages').insert({
-        id: isValidUUID(restockAlert.id) ? restockAlert.id : generateUUID(),
+        id: isValidUUID(restockMessage.id) ? restockMessage.id : generateUUID(),
         sender_id: (user?.id && isValidUUID(user.id)) ? user.id : null,
         receiver_id: (listing.farmer_id && isValidUUID(listing.farmer_id)) ? listing.farmer_id : null,
-        content: restockAlert.content
+        content: restockMessage.content
       });
     } catch (e) {
       console.warn('Restock message sync notice:', e);
     }
 
-    showToast(`Farmer ${listing.farmer_name} has been notified to restock "${listing.product_type}"!`, 'success');
+    showToast(`Restock alert sent to ${listing.farmer_name}! (${newAttempts}/2 alerts sent)`, 'success');
+    return { success: true, attempts: newAttempts };
+  };
+
+  const dismissRestockAlert = (alertId) => {
+    setRestockAlerts(prev => prev.filter(a => a.id !== alertId));
+  };
+
+  const markRestockAlertAsRead = (alertId) => {
+    setRestockAlerts(prev => prev.map(a => a.id === alertId ? { ...a, is_read: true } : a));
   };
 
   const updateOrderStatus = async (orderId, newStatus) => {
@@ -1008,6 +1109,10 @@ export const AppProvider = ({ children }) => {
       updateListingStatus,
       updateListingDetails,
       notifyFarmerToRestock,
+      restockAttempts,
+      restockAlerts,
+      dismissRestockAlert,
+      markRestockAlertAsRead,
       toast,
       showToast
     }}>

@@ -8,7 +8,7 @@ import { useApp } from '../context/AppContext';
 
 export default function ListingDetailPage() {
   const { id } = useParams();
-  const { listings, farmers, addToCart, sendMessage, user, notifyFarmerToRestock } = useApp();
+  const { listings, farmers, cart, addToCart, sendMessage, user, notifyFarmerToRestock, restockAttempts } = useApp();
   const navigate = useNavigate();
 
   const listing = listings.find(item => item.id === id);
@@ -34,7 +34,15 @@ export default function ListingDetailPage() {
   const [quantity, setQuantity] = useState(1);
   const [isLiked, setIsLiked] = useState(false);
 
-  const isOutOfStock = !listing || (Number(listing.quantity) <= 0) || listing.status === 'sold_out' || listing.status === 'out_of_stock';
+  const availableStock = Number(listing?.quantity) || 0;
+  const isOutOfStock = !listing || availableStock <= 0 || listing.status === 'sold_out' || listing.status === 'out_of_stock';
+
+  const inCartItem = cart?.find(item => item.id === listing?.id);
+  const inCartQty = inCartItem ? inCartItem.quantity : 0;
+  const isMaxInCart = !isOutOfStock && inCartQty >= availableStock;
+
+  const attempts = (restockAttempts && listing && restockAttempts[listing.id]) || 0;
+  const maxAttemptsReached = attempts >= 2;
 
   const images = (listing?.images && listing.images.length > 0)
     ? listing.images
@@ -49,8 +57,7 @@ export default function ListingDetailPage() {
   };
 
   const handleAddToCart = () => {
-    if (isOutOfStock) {
-      notifyFarmerToRestock(listing.id);
+    if (isOutOfStock || isMaxInCart) {
       return;
     }
     const success = addToCart(listing, quantity);
@@ -274,31 +281,43 @@ export default function ListingDetailPage() {
               </div>
               <button
                 onClick={() => notifyFarmerToRestock(listing.id)}
-                className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold flex items-center gap-1 shadow-xs"
+                disabled={maxAttemptsReached}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 shadow-xs transition-colors ${
+                  maxAttemptsReached 
+                    ? 'bg-slate-200 text-slate-500 cursor-not-allowed border border-slate-300' 
+                    : 'bg-amber-500 hover:bg-amber-600 text-white cursor-pointer'
+                }`}
               >
                 <BellRing className="w-3.5 h-3.5" />
-                <span>Notify Farmer</span>
+                <span>{maxAttemptsReached ? 'Alerted (2/2)' : `Notify Farmer (${attempts}/2)`}</span>
               </button>
             </div>
           )}
 
           {/* Action Buttons */}
           <div className="space-y-3 pt-2">
-            {!isOutOfStock ? (
+            {isOutOfStock ? (
+              <button
+                disabled={true}
+                className="w-full py-3.5 rounded-xl bg-slate-200 text-slate-500 font-bold text-sm cursor-not-allowed shadow-none flex items-center justify-center space-x-2"
+              >
+                <span>Out of Stock — Cannot Add to Cart</span>
+              </button>
+            ) : isMaxInCart ? (
+              <button
+                disabled={true}
+                className="w-full py-3.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-300 font-bold text-sm cursor-not-allowed shadow-none flex items-center justify-center space-x-2"
+              >
+                <CheckCircle className="w-5 h-5 text-emerald-600" />
+                <span>All Available Stock in Cart ({inCartQty})</span>
+              </button>
+            ) : (
               <button
                 onClick={handleAddToCart}
                 className="w-full py-3.5 rounded-xl bg-brand-forest text-white font-bold text-sm hover:bg-brand-dark transition-colors shadow-md flex items-center justify-center space-x-2 cursor-pointer"
               >
                 <ShoppingBag className="w-5 h-5" />
                 <span>Add to Cart (E{listing.price * quantity})</span>
-              </button>
-            ) : (
-              <button
-                onClick={() => notifyFarmerToRestock(listing.id)}
-                className="w-full py-3.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm transition-colors shadow-md flex items-center justify-center space-x-2 cursor-pointer"
-              >
-                <BellRing className="w-5 h-5" />
-                <span>Request Farmer Restock</span>
               </button>
             )}
 
