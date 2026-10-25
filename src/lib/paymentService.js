@@ -3,27 +3,22 @@
  * Handles MTN Mobile Money (MoMo) Open API and DPO Pay (D-Pay) Card Processing.
  */
 
+// Only non-secret values belong here: Vite inlines every import.meta.env.VITE_*
+// reference into the public bundle. API keys, tokens and secrets must stay
+// server-side and be read via process.env inside Netlify Functions.
+const SITE_ORIGIN = typeof window !== 'undefined' ? window.location.origin : 'https://farmconnectesw.netlify.app';
+
 // 1. MTN Mobile Money Configuration
 export const MOMO_CONFIG = {
-  environment: import.meta.env.VITE_MTN_MOMO_ENVIRONMENT || 'sandbox',
-  baseUrl: import.meta.env.VITE_MTN_MOMO_BASE_URL || 'https://sandbox.momodeveloper.mtn.com',
-  consumerKey: import.meta.env.VITE_MTN_MOMO_CONSUMER_KEY || '',
-  consumerSecret: import.meta.env.VITE_MTN_MOMO_CONSUMER_SECRET || '',
-  primaryKey: import.meta.env.VITE_MTN_MOMO_PRIMARY_KEY || '',
-  targetEnv: import.meta.env.VITE_MTN_MOMO_TARGET_ENV || 'sandbox',
-  currency: import.meta.env.VITE_MTN_MOMO_CURRENCY || 'SZL',
+  currency: 'SZL',
   // Custom Callback URL registered on MTN MoMo Developer Portal
-  callbackUrl: import.meta.env.VITE_MTN_MOMO_CALLBACK_URL || 'https://farmconnect-eswatini.netlify.app/api/momo-callback'
+  callbackUrl: `${SITE_ORIGIN}/api/momo-callback`
 };
 
 // 2. DPO Pay (Direct Pay Online / D-Pay) Configuration
 export const DPO_CONFIG = {
-  baseUrl: import.meta.env.VITE_DPO_PAY_BASE_URL || 'https://secure.3gdirectpay.com/API/v6/',
-  companyToken: import.meta.env.VITE_DPO_COMPANY_TOKEN || '',
-  serviceType: import.meta.env.VITE_DPO_SERVICE_TYPE || '3854',
-  apiKey: import.meta.env.VITE_DPO_API_KEY || '',
-  callbackUrl: import.meta.env.VITE_DPO_CALLBACK_URL || 'https://farmconnect-eswatini.netlify.app/payment/dpo-callback',
-  cancelUrl: import.meta.env.VITE_DPO_CANCEL_URL || 'https://farmconnect-eswatini.netlify.app/checkout'
+  callbackUrl: `${SITE_ORIGIN}/payment/dpo-callback`,
+  cancelUrl: `${SITE_ORIGIN}/checkout`
 };
 
 /**
@@ -35,7 +30,6 @@ export const DPO_CONFIG = {
  * @param {string} paymentData.note - Description
  */
 export async function initiateMtnMoMoPayment({ phone, amount, orderId, note = 'FarmConnect Order' }) {
-  console.log('[MoMo Payment] Initiating request to:', MOMO_CONFIG.baseUrl);
   console.log('[MoMo Callback URL]:', MOMO_CONFIG.callbackUrl);
 
   const formattedPhone = phone.replace(/\s+/g, '').replace(/^0/, '268');
@@ -67,21 +61,17 @@ export async function initiateMtnMoMoPayment({ phone, amount, orderId, note = 'F
     }
 
     // Default Sandbox Simulation when running locally or awaiting production activation
-    const hasKeys = Boolean(MOMO_CONFIG.consumerKey && MOMO_CONFIG.consumerKey !== 'your_mtn_momo_consumer_key_or_api_user');
-
     return {
       success: true,
       referenceId,
       orderId,
       status: 'APPROVED',
-      isConfigured: hasKeys,
+      isConfigured: false,
       amount,
       currency: MOMO_CONFIG.currency,
       phone: formattedPhone,
       callbackUrl: MOMO_CONFIG.callbackUrl,
-      message: hasKeys 
-        ? `MTN MoMo sandbox collection initialized for ${formattedPhone}.` 
-        : `[Sandbox Mode] Test payment approved for ${formattedPhone}. (To connect live API, add Consumer Key, Secret & Subscription Key to .env)`
+      message: `[Sandbox Mode] Test payment approved for ${formattedPhone}. (To connect live API, configure the MTN MoMo keys in Netlify environment variables)`
     };
   } catch (err) {
     console.error('[MoMo Payment Error]:', err);
@@ -103,7 +93,7 @@ export async function initiateMtnMoMoPayment({ phone, amount, orderId, note = 'F
  * @param {string} cardData.orderId
  */
 export async function initiateDpoCardPayment({ cardHolder, cardNumber, expiry, cvv, amount, orderId }) {
-  console.log('[DPO Pay] Processing Card via Sandbox API:', DPO_CONFIG.baseUrl);
+  console.log('[DPO Pay] Processing card via sandbox');
   const maskedCard = cardNumber.replace(/\s+/g, '').slice(-4);
   const transToken = `DPO-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
