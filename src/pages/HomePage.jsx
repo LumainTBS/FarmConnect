@@ -331,8 +331,8 @@ export default function HomePage() {
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {listings.slice(0, 4).map((listing) => (
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
+          {listings.slice(0, 8).map((listing) => (
             <ProductCard key={listing.id} listing={listing} />
           ))}
         </div>
@@ -340,7 +340,7 @@ export default function HomePage() {
 
       {/* TOP FEATURED FARMERS (TOP 4 PERFORMERS) */}
       <section className="px-4 sm:px-6 lg:px-8">
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-5 sm:p-6 shadow-xs liquid-glass">
+        <div className="bg-white/80 backdrop-blur-md rounded-2xl border border-slate-200/80 p-4 sm:p-6 shadow-xs liquid-glass">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-2">
               <MapPin className="w-5 h-5 text-brand-forest" />
@@ -355,20 +355,20 @@ export default function HomePage() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-            {topFarmers.map((farmer, idx) => (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
+            {topFarmers.slice(0, 4).map((farmer, idx) => (
               <Link 
                 key={farmer.id}
                 to={`/farmer/${farmer.id}`}
-                className="relative flex items-center space-x-3 p-3.5 rounded-xl border border-slate-200/90 bg-white hover:border-emerald-400 hover:shadow-md transition-all group"
+                className="relative flex flex-col sm:flex-row items-start sm:items-center p-3 rounded-xl border border-slate-200/80 bg-white/90 backdrop-blur-xs hover:border-emerald-400 hover:shadow-md transition-all group gap-2.5"
               >
-                <div className="relative">
+                <div className="relative shrink-0">
                   <img 
                     src={farmer.avatar} 
                     alt={farmer.name} 
-                    className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0" 
+                    className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl object-cover border border-slate-200 shrink-0" 
                   />
-                  <span className="absolute -top-1.5 -left-1.5 w-5 h-5 rounded-md bg-slate-900 text-white font-extrabold text-[10px] flex items-center justify-center shadow-xs">
+                  <span className="absolute -top-1.5 -left-1.5 w-4 h-4 sm:w-5 sm:h-5 rounded-md bg-slate-900 text-white font-extrabold text-[9px] sm:text-[10px] flex items-center justify-center shadow-xs">
                     #{idx + 1}
                   </span>
                 </div>
