@@ -4,7 +4,7 @@ import {
   ShieldCheck, AlertTriangle, CheckCircle, XCircle, DollarSign, 
   Users, Package, TrendingUp, CreditCard, Percent, Eye, FileText, 
   Filter, Search, ArrowUpRight, Award, RefreshCw, BarChart3, PieChart as PieIcon,
-  Activity, ArrowDownRight, Layers
+  Activity, ArrowDownRight, Layers, Printer, Download, Calendar, Sparkles, X
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { SUBSCRIPTION_TIERS } from '../lib/supabase';
@@ -30,6 +30,8 @@ export default function AdminDashboardPage() {
   const [hoveredPoint, setHoveredPoint] = useState(null);
   const [hoveredBar, setHoveredBar] = useState(null);
   const [hoveredSlice, setHoveredSlice] = useState(null);
+  const [showStatementModal, setShowStatementModal] = useState(false);
+  const [statementMonth, setStatementMonth] = useState('October 2026');
 
   // 1. REVENUE CALCULATIONS
   const totalCommissionRevenue = orders
@@ -137,20 +139,14 @@ export default function AdminDashboardPage() {
             </p>
           </div>
 
-          {/* Test Persona Quick Actions */}
-          <div className="flex flex-wrap items-center gap-2 bg-white/10 backdrop-blur-md p-2 rounded-2xl border border-white/15 self-start md:self-auto">
-            <span className="text-[11px] text-slate-300 px-2 font-bold uppercase tracking-wider">Persona:</span>
+          {/* Monthly Statement Action */}
+          <div className="flex items-center gap-3 self-start md:self-auto">
             <button
-              onClick={() => switchRole('farmer')}
-              className="px-3 py-1.5 text-xs font-bold rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-100 transition-all border border-white/10"
+              onClick={() => setShowStatementModal(true)}
+              className="flex items-center space-x-2 px-4 py-2.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs shadow-lg hover:shadow-emerald-500/25 transition-all cursor-pointer"
             >
-              Farmer Mode
-            </button>
-            <button
-              onClick={() => switchRole('buyer')}
-              className="px-3 py-1.5 text-xs font-bold rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-100 transition-all border border-white/10"
-            >
-              Buyer Mode
+              <Printer className="w-4 h-4 text-slate-950" />
+              <span>Print Monthly Statement</span>
             </button>
           </div>
         </div>
@@ -937,6 +933,318 @@ export default function AdminDashboardPage() {
               >
                 Approve Verified Badge
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MONTHLY STATEMENT PRINT MODAL */}
+      {showStatementModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+          {/* Print CSS */}
+          <style>{`
+            @media print {
+              body * {
+                visibility: hidden !important;
+              }
+              #printable-statement, #printable-statement * {
+                visibility: visible !important;
+              }
+              #printable-statement {
+                position: fixed !important;
+                left: 0 !important;
+                top: 0 !important;
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 24px !important;
+                background: #ffffff !important;
+                color: #0f172a !important;
+                box-shadow: none !important;
+                border: none !important;
+              }
+              .no-print {
+                display: none !important;
+              }
+            }
+          `}</style>
+
+          <div className="bg-slate-100 rounded-3xl max-w-4xl w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden border border-slate-300">
+            {/* Modal Control Bar (Excluded from print) */}
+            <div className="no-print p-4 bg-slate-900 text-white flex flex-wrap items-center justify-between gap-3 border-b border-slate-800">
+              <div className="flex items-center space-x-2">
+                <Printer className="w-5 h-5 text-emerald-400" />
+                <h3 className="font-extrabold text-sm sm:text-base">Official Monthly Statement Generator</h3>
+              </div>
+
+              <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-1.5 bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700 text-xs">
+                  <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                  <select 
+                    value={statementMonth}
+                    onChange={(e) => setStatementMonth(e.target.value)}
+                    className="bg-transparent text-white focus:outline-none cursor-pointer font-semibold"
+                  >
+                    <option value="October 2026" className="bg-slate-900">October 2026</option>
+                    <option value="September 2026" className="bg-slate-900">September 2026</option>
+                    <option value="August 2026" className="bg-slate-900">August 2026</option>
+                    <option value="Q3 2026 Consolidated" className="bg-slate-900">Q3 2026 Consolidated</option>
+                  </select>
+                </div>
+
+                <button
+                  onClick={() => window.print()}
+                  className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-md flex items-center space-x-1.5 transition-all cursor-pointer"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Print Document</span>
+                </button>
+
+                <button
+                  onClick={() => setShowStatementModal(false)}
+                  className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Printable Statement Document Content */}
+            <div className="p-4 sm:p-8 overflow-y-auto bg-slate-200/50">
+              <div 
+                id="printable-statement" 
+                className="bg-white rounded-2xl shadow-sm border border-slate-300/80 p-6 sm:p-10 text-slate-900 space-y-6 max-w-3xl mx-auto"
+              >
+                {/* Statement Header */}
+                <div className="border-b-2 border-emerald-900/20 pb-5 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center space-x-3">
+                      <img src="/logo.png" alt="FarmConnect" className="w-10 h-10 object-contain rounded-full border border-emerald-700/20 p-0.5" />
+                      <div>
+                        <h2 className="text-xl sm:text-2xl font-black text-emerald-950 tracking-tight">FARMCONNECT ESWATINI</h2>
+                        <p className="text-[10px] font-bold tracking-widest text-emerald-800 uppercase">National Agricultural Exchange &middot; Ministry of Agriculture Interface</p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-slate-600 pt-1">
+                      Mbabane Office Park, 4th Floor &middot; P.O. Box 450, Mbabane, H100, Eswatini &middot; +268 2404 1200
+                    </p>
+                  </div>
+
+                  <div className="text-left sm:text-right space-y-1 bg-emerald-50/70 p-3 rounded-xl border border-emerald-100">
+                    <span className="inline-block text-[10px] font-black tracking-wider uppercase px-2 py-0.5 rounded bg-emerald-700 text-white">
+                      OFFICIAL STATEMENT
+                    </span>
+                    <div className="text-xs font-mono font-bold text-slate-800">REF: FC-ESW-STMT-{statementMonth.replace(/\s+/g, '-')}</div>
+                    <div className="text-[11px] text-slate-500">Period: <span className="font-semibold text-slate-800">{statementMonth}</span></div>
+                    <div className="text-[10px] text-slate-400">Date Issued: {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+                  </div>
+                </div>
+
+                {/* 1. FINANCIAL SUMMARY OVERVIEW */}
+                <div className="space-y-2.5">
+                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                    <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>1. Financial & Revenue Performance Summary</span>
+                  </h3>
+                  
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                      <div className="text-[10px] font-bold text-slate-500 uppercase">Gross Merchandise Value</div>
+                      <div className="text-base sm:text-lg font-black text-slate-900 mt-0.5">E{totalGrossMerchandiseValue.toFixed(2)}</div>
+                      <div className="text-[9px] text-slate-500 mt-0.5">Total Trade Volume</div>
+                    </div>
+                    <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-200">
+                      <div className="text-[10px] font-bold text-emerald-800 uppercase">Order Commissions (5%)</div>
+                      <div className="text-base sm:text-lg font-black text-emerald-950 mt-0.5">E{totalCommissionRevenue.toFixed(2)}</div>
+                      <div className="text-[9px] text-emerald-700 mt-0.5">{orders.length} Processed Orders</div>
+                    </div>
+                    <div className="bg-amber-50 p-3 rounded-xl border border-amber-200">
+                      <div className="text-[10px] font-bold text-amber-800 uppercase">Farmer Subscriptions</div>
+                      <div className="text-base sm:text-lg font-black text-amber-950 mt-0.5">E{totalSubscriptionRevenue.toFixed(2)}</div>
+                      <div className="text-[9px] text-amber-700 mt-0.5">{subscriptionPayments.length} Active Renewals</div>
+                    </div>
+                    <div className="bg-slate-900 text-white p-3 rounded-xl border border-slate-800">
+                      <div className="text-[10px] font-bold text-emerald-400 uppercase">Net Platform Earnings</div>
+                      <div className="text-base sm:text-lg font-black text-white mt-0.5">E{totalPlatformEarnings.toFixed(2)}</div>
+                      <div className="text-[9px] text-slate-300 mt-0.5">Retained Revenue</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. SYSTEM & USER METRICS */}
+                <div className="space-y-2.5">
+                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5 text-blue-600" />
+                    <span>2. Platform Ecosystem & User Participation</span>
+                  </h3>
+                  
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                    <div className="border border-slate-200 p-2.5 rounded-xl">
+                      <span className="text-slate-500 block text-[10px]">Registered Farmers</span>
+                      <span className="font-extrabold text-slate-900 text-sm">{farmers.length} Growers</span>
+                    </div>
+                    <div className="border border-slate-200 p-2.5 rounded-xl">
+                      <span className="text-slate-500 block text-[10px]">KYC Verified Badge</span>
+                      <span className="font-extrabold text-emerald-700 text-sm">
+                        {farmers.filter(f => f.is_verified).length} Verified ({Math.round(farmers.filter(f => f.is_verified).length / (farmers.length || 1) * 100)}%)
+                      </span>
+                    </div>
+                    <div className="border border-slate-200 p-2.5 rounded-xl">
+                      <span className="text-slate-500 block text-[10px]">Live Catalog Listings</span>
+                      <span className="font-extrabold text-slate-900 text-sm">{listings.length} Produce Batches</span>
+                    </div>
+                    <div className="border border-slate-200 p-2.5 rounded-xl">
+                      <span className="text-slate-500 block text-[10px]">Regional Coverage</span>
+                      <span className="font-extrabold text-slate-900 text-sm">Hhohho, Manzini, Lubombo, Shiselweni</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. LEADING PRODUCE TYPES ON THE MARKET */}
+                <div className="space-y-2.5">
+                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                    <TrendingUp className="w-3.5 h-3.5 text-amber-600" />
+                    <span>3. Produce Demand & Leading Listings Breakdown</span>
+                  </h3>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Category Share */}
+                    <div className="border border-slate-200 rounded-xl p-3 bg-slate-50/50">
+                      <div className="text-[11px] font-bold text-slate-800 mb-2">Listing Volume by Category</div>
+                      <div className="space-y-1.5">
+                        {pieCategories.map((cat, idx) => (
+                          <div key={idx} className="flex items-center justify-between text-xs">
+                            <span className="text-slate-600 flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color }} />
+                              {cat.name}
+                            </span>
+                            <span className="font-bold text-slate-900">{cat.count} listings ({Math.round((cat.count / (totalProduceCount || 1)) * 100)}%)</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Top Produce on the Lead */}
+                    <div className="border border-slate-200 rounded-xl p-3 bg-slate-50/50">
+                      <div className="text-[11px] font-bold text-slate-800 mb-2">High Turnover Commodities (Lead Listings)</div>
+                      <div className="space-y-1.5">
+                        {listings.slice(0, 4).map((item, idx) => (
+                          <div key={idx} className="flex items-center justify-between text-xs border-b border-slate-200/60 pb-1 last:border-none">
+                            <div className="truncate max-w-[170px]">
+                              <span className="font-semibold text-slate-900 block truncate">{item.title}</span>
+                              <span className="text-[10px] text-slate-500 capitalize">{item.category} &middot; {item.quantity_available || 'Ample stock'}</span>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <span className="font-bold text-emerald-800">E{Number(item.price_per_unit || 0).toFixed(2)}</span>
+                              <span className="block text-[9px] text-slate-400">/{item.unit || 'unit'}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. RECENT ORDERS & COMMISSIONS TABLE */}
+                <div className="space-y-2">
+                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>4. Audit Record: Executed Orders & Commissions (Sample)</span>
+                  </h3>
+
+                  <div className="border border-slate-200 rounded-xl overflow-hidden">
+                    <table className="w-full text-[11px] text-left">
+                      <thead className="bg-slate-100 text-slate-600 font-bold border-b border-slate-200">
+                        <tr>
+                          <th className="p-2">Order ID</th>
+                          <th className="p-2">Buyer</th>
+                          <th className="p-2">Total Value</th>
+                          <th className="p-2">Commission (5%)</th>
+                          <th className="p-2">Payment Method</th>
+                          <th className="p-2">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {orders.slice(0, 5).map((o, idx) => {
+                          const comm = (Number(o.commission_amount) || (Number(o.total_price) * 0.05)).toFixed(2);
+                          return (
+                            <tr key={o.id || idx}>
+                              <td className="p-2 font-mono text-slate-700">{o.id?.slice(0, 8) || `ORD-00${idx + 1}`}</td>
+                              <td className="p-2 font-medium text-slate-800">{o.buyer_name || 'Retail Client'}</td>
+                              <td className="p-2 font-bold text-slate-900">E{Number(o.total_price || 0).toFixed(2)}</td>
+                              <td className="p-2 font-bold text-emerald-700">E{comm}</td>
+                              <td className="p-2 text-slate-600 capitalize">{o.payment_method || 'MTN MoMo'}</td>
+                              <td className="p-2">
+                                <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800">
+                                  {o.status || 'completed'}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* 5. SUBSCRIPTION PAYMENTS RECEIVED */}
+                <div className="space-y-2">
+                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                    <CreditCard className="w-3.5 h-3.5 text-amber-600" />
+                    <span>5. Farmer Tier Subscriptions Inflow (Sample)</span>
+                  </h3>
+
+                  <div className="border border-slate-200 rounded-xl overflow-hidden">
+                    <table className="w-full text-[11px] text-left">
+                      <thead className="bg-slate-100 text-slate-600 font-bold border-b border-slate-200">
+                        <tr>
+                          <th className="p-2">Farmer / Producer</th>
+                          <th className="p-2">Tier Level</th>
+                          <th className="p-2">Amount Paid</th>
+                          <th className="p-2">Billing Cycle</th>
+                          <th className="p-2">Channel</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {subscriptionPayments.slice(0, 5).map((sub, idx) => (
+                          <tr key={sub.id || idx}>
+                            <td className="p-2 font-medium text-slate-800">{sub.farmer_name || 'Verified Grower'}</td>
+                            <td className="p-2">
+                              <span className="font-bold text-amber-700 uppercase text-[10px] bg-amber-50 px-2 py-0.5 rounded">
+                                {sub.tier_id || 'Pro Tier'}
+                              </span>
+                            </td>
+                            <td className="p-2 font-bold text-slate-900">E{Number(sub.amount || 29).toFixed(2)}</td>
+                            <td className="p-2 text-slate-600 capitalize">{sub.billing_cycle || 'monthly'}</td>
+                            <td className="p-2 text-slate-600">{sub.payment_method || 'Mobile Money'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* STATEMENT AUDIT STAMP & SIGNATURE */}
+                <div className="border-t-2 border-slate-200 pt-5 mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
+                  <div className="space-y-1 text-center sm:text-left">
+                    <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Certified Audit & Issuing Officer</div>
+                    <div className="font-serif italic font-bold text-base text-slate-800">Sibusiso Dlamini</div>
+                    <div className="text-[10px] text-slate-600">Chief Executive Operations &middot; FarmConnect Eswatini</div>
+                  </div>
+
+                  <div className="flex items-center space-x-3 p-3 rounded-xl border border-dashed border-emerald-500/50 bg-emerald-50/50">
+                    <ShieldCheck className="w-8 h-8 text-emerald-700" />
+                    <div>
+                      <div className="text-[10px] font-extrabold uppercase text-emerald-950">REPUBLIC OF ESWATINI VALIDATED</div>
+                      <div className="text-[9px] text-emerald-800 font-mono">DIGITAL HASH: 8f4e2b9c7a10d0e6</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer disclaimer */}
+                <div className="text-center text-[9px] text-slate-400 pt-3 border-t border-slate-100">
+                  This statement is a system-generated official audit document from the FarmConnect Eswatini National Platform. Any reproduction without authorized clearance is prohibited under the Eswatini Electronic Transactions Act.
+                </div>
+              </div>
             </div>
           </div>
         </div>

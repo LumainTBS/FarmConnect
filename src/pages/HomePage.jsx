@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { 
   Search, Carrot, Apple, Wheat, Beef, Milk, Package, 
   MapPin, CheckCircle, ArrowRight, ShieldCheck, HeartHandshake, Sprout, ChevronRight,
-  ChevronLeft, Tag, Truck
+  ChevronLeft, Tag, Truck, Sparkles, CreditCard
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import ProductCard from '../components/ProductCard';
@@ -392,6 +392,44 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* FARMER PRICING & SUBSCRIPTION CTA BANNER */}
+      {user?.role !== 'buyer' && (
+        <section className="px-4 sm:px-6 lg:px-8">
+          <div className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-emerald-950 via-emerald-900 to-teal-950 text-white p-7 sm:p-10 shadow-xl border border-emerald-500/30">
+            <div className="absolute -right-12 -top-12 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-6">
+              <div className="space-y-3 max-w-2xl text-center lg:text-left">
+                <div className="inline-flex items-center space-x-2 bg-emerald-800/80 text-emerald-200 px-3 py-1 rounded-full text-xs font-semibold backdrop-blur-sm border border-emerald-500/30">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Farmer Growth Plans &middot; Transparent Pricing</span>
+                </div>
+                <h3 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white leading-snug">
+                  Grow Your Agricultural Business with FarmConnect Pro
+                </h3>
+                <p className="text-xs sm:text-sm text-emerald-100/90 leading-relaxed font-normal">
+                  Unlock unlimited produce listings, direct buyer crate inquiries & restock alerts, verified grower badges, and automated harvest price trend tracking. Starting from only <span className="font-bold text-amber-300">E29/month</span>.
+                </p>
+                <div className="flex flex-wrap gap-3 text-xs text-emerald-200 justify-center lg:justify-start pt-1">
+                  <span className="flex items-center gap-1.5"><CheckCircle className="w-3.5 h-3.5 text-emerald-400" /> 0% Hidden Fees</span>
+                  <span className="flex items-center gap-1.5"><CheckCircle className="w-3.5 h-3.5 text-emerald-400" /> MTN MoMo & Instacash</span>
+                  <span className="flex items-center gap-1.5"><CheckCircle className="w-3.5 h-3.5 text-emerald-400" /> Instant Buyer Messaging</span>
+                </div>
+              </div>
+              <div className="shrink-0">
+                <Link
+                  to="/subscriptions"
+                  className="px-6 py-3.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-sm rounded-xl transition-all shadow-lg hover:shadow-xl flex items-center space-x-2"
+                >
+                  <CreditCard className="w-4 h-4 text-slate-900" />
+                  <span>Explore Farmer Plans</span>
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ABOUT FARM CONNECT ESWATINI BANNER (BELOW SUGGESTED FARMERS SECTION) */}
       <section className="px-4 sm:px-6 lg:px-8">

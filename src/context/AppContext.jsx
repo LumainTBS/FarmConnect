@@ -202,21 +202,63 @@ export const AppProvider = ({ children }) => {
     ];
   });
 
-  // Messages state
+  // Messages state with safe hydration
   const [messages, setMessages] = useState(() => {
     const saved = localStorage.getItem('farmconnect_messages');
-    return saved ? JSON.parse(saved) : [
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.filter(m => m && typeof m === 'object').map(m => ({
+            ...m,
+            chats: Array.isArray(m.chats) ? m.chats : (m.content ? [{ sender: 'buyer', text: m.content, time: 'Recent' }] : [])
+          }));
+        }
+      } catch (e) {
+        console.warn('Error reading saved messages:', e);
+      }
+    }
+    return [
       {
         id: 'msg-1',
         conversation_with_id: 'frm-1',
         conversation_with_name: 'Matsanjeni Farm',
         farmer_avatar: 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=150&q=80',
-        last_message: "Thank you for your order! It will be ready for pickup in Manzini.",
+        farmer_location: 'Matsanjeni, Shiselweni',
+        product_context: {
+          product_name: 'Fresh Spinach',
+          price: 20,
+          unit: 'kg',
+          available: 45
+        },
+        last_message: "Yes! Harvested early this morning. How many crates do you need?",
         last_time: '10:34 AM',
+        unread: false,
+        chats: [
+          { sender: 'buyer', text: 'Hi Matsanjeni Farm, how many crates of Fresh Spinach are available today?', time: '10:30 AM' },
+          { sender: 'farmer', text: 'Hello! We have 45kg available today. Can you do pickup in Manzini or local delivery?', time: '10:32 AM' },
+          { sender: 'buyer', text: 'Can you produce 50 more crates by Friday next week?', time: '10:33 AM' },
+          { sender: 'farmer', text: 'Yes! Harvested early this morning. How many crates do you need?', time: '10:34 AM' }
+        ]
+      },
+      {
+        id: 'msg-2',
+        conversation_with_id: 'frm-2',
+        conversation_with_name: 'Mahlase Farm',
+        farmer_avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
+        farmer_location: 'Manzini South',
+        product_context: {
+          product_name: 'Red Round Tomatoes',
+          price: 25,
+          unit: 'crate',
+          available: 120
+        },
+        last_message: "We have 120 crates in stock. Delivery to Manzini hub is available.",
+        last_time: '09:15 AM',
         unread: true,
         chats: [
-          { sender: 'buyer', text: 'Hi, is the fresh spinach harvested today?', time: '10:30 AM' },
-          { sender: 'farmer', text: 'Yes! Harvested early this morning at 6 AM.', time: '10:32 AM' }
+          { sender: 'buyer', text: 'Good morning! How many crates of Tomatoes do you have left?', time: '09:10 AM' },
+          { sender: 'farmer', text: 'We have 120 crates in stock. Delivery to Manzini hub is available.', time: '09:15 AM' }
         ]
       }
     ];
@@ -838,28 +880,66 @@ export const AppProvider = ({ children }) => {
 
     setRestockAlerts(prev => [newAlert, ...prev]);
 
-    // Send direct restock notification message
-    const restockMessage = {
-      id: `NOTIF-${Date.now()}`,
-      sender_id: user?.id || 'buyer-customer',
-      sender_name: user?.full_name || 'Interested Buyer',
-      receiver_id: listing.farmer_id,
-      receiver_name: listing.farmer_name,
-      listing_id: listing.id,
-      product_name: listing.product_type,
-      content: `[RESTOCK ALERT #${newAttempts}/2]: A buyer is requesting "${listing.product_type}" which is out of stock! Please restock this produce in your Farmer Dashboard.`,
-      created_at: new Date().toISOString(),
-      is_read: false
-    };
+    // Send direct restock notification message safely grouped into conversation
+    const restockChatText = `[Restock Request #${newAttempts}/2]: A buyer is asking to purchase "${listing.product_type}" which is out of stock. When will your next crates be ready?`;
+    
+    setMessages(prev => {
+      const safePrev = Array.isArray(prev) ? prev.filter(c => c && typeof c === 'object') : [];
+      const targetId = listing.farmer_id || 'frm-1';
+      const existingIdx = safePrev.findIndex(c => c.conversation_with_id === targetId);
+      const newChat = {
+        sender: 'buyer',
+        sender_id: user?.id || 'buyer-customer',
+        sender_name: user?.full_name || 'Interested Buyer',
+        text: restockChatText,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
 
-    setMessages(prev => [restockMessage, ...prev]);
+      if (existingIdx > -1) {
+        const copy = [...safePrev];
+        copy[existingIdx] = {
+          ...copy[existingIdx],
+          last_message: newChat.text,
+          last_time: 'Just now',
+          product_context: {
+            product_name: listing.product_type,
+            price: listing.price,
+            unit: listing.unit
+          },
+          chats: [...(copy[existingIdx].chats || []), newChat]
+        };
+        return copy;
+      }
+      return [
+        {
+          id: `msg-${Date.now()}`,
+          conversation_with_id: targetId,
+          conversation_with_name: listing.farmer_name || 'Farmer',
+          farmer_avatar: listing.farmer_avatar || 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=150&q=80',
+          last_message: newChat.text,
+          last_time: 'Just now',
+          unread: false,
+          product_context: {
+            product_name: listing.product_type,
+            price: listing.price,
+            unit: listing.unit
+          },
+          chats: [newChat]
+        },
+        ...safePrev
+      ];
+    });
 
     try {
       await supabase.from('messages').insert({
-        id: isValidUUID(restockMessage.id) ? restockMessage.id : generateUUID(),
+        id: generateUUID(),
         sender_id: (user?.id && isValidUUID(user.id)) ? user.id : null,
+        sender_name: user?.full_name || 'Interested Buyer',
         receiver_id: (listing.farmer_id && isValidUUID(listing.farmer_id)) ? listing.farmer_id : null,
-        content: restockMessage.content
+        receiver_name: listing.farmer_name,
+        product_name: listing.product_type,
+        listing_id: listing.id,
+        content: restockChatText
       });
     } catch (e) {
       console.warn('Restock message sync notice:', e);
@@ -1019,41 +1099,71 @@ export const AppProvider = ({ children }) => {
     showToast(`Farmer plan updated to ${SUBSCRIPTION_TIERS[newTier]?.name || newTier}.`, 'success');
   };
 
-  // Messaging
-  const sendMessage = (targetFarmerId, targetFarmerName, text) => {
+  // Messaging with Supabase Sync & Product Context
+  const sendMessage = async (targetFarmerId, targetFarmerName, text, productContext = null) => {
     if (!user) {
-      showToast('Please sign in to contact farmers', 'info');
+      showToast('Please sign in to send messages', 'info');
       return false;
     }
 
+    const isFarmer = user.role === 'farmer';
+    const senderRole = isFarmer ? 'farmer' : 'buyer';
+    const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
     setMessages(prev => {
-      const existingConvIndex = prev.findIndex(m => m.conversation_with_id === targetFarmerId);
-      const newChat = { sender: 'buyer', text, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
+      const safePrev = Array.isArray(prev) ? prev.filter(c => c && typeof c === 'object') : [];
+      const existingConvIndex = safePrev.findIndex(m => m.conversation_with_id === targetFarmerId);
+      const newChat = { 
+        sender: senderRole, 
+        sender_id: user.id || 'usr-active',
+        sender_name: user.full_name || (isFarmer ? 'Farmer' : 'Buyer'),
+        text, 
+        time: timeNow 
+      };
 
       if (existingConvIndex > -1) {
-        const updated = [...prev];
+        const updated = [...safePrev];
         updated[existingConvIndex] = {
           ...updated[existingConvIndex],
           last_message: text,
           last_time: 'Just now',
-          chats: [...updated[existingConvIndex].chats, newChat]
+          product_context: productContext || updated[existingConvIndex].product_context,
+          chats: [...(updated[existingConvIndex].chats || []), newChat]
         };
         return updated;
       } else {
+        const targetFarmer = farmers.find(f => f.id === targetFarmerId);
         const newConv = {
           id: `msg-${Date.now()}`,
           conversation_with_id: targetFarmerId,
           conversation_with_name: targetFarmerName,
-          farmer_avatar: 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=150&q=80',
+          farmer_avatar: targetFarmer?.avatar || 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=150&q=80',
+          farmer_location: targetFarmer?.location || targetFarmer?.inkhundla || 'Eswatini',
+          product_context: productContext || null,
           last_message: text,
           last_time: 'Just now',
           unread: false,
           chats: [newChat]
         };
-        return [newConv, ...prev];
+        return [newConv, ...safePrev];
       }
     });
-    showToast('Message sent to farmer');
+
+    try {
+      await supabase.from('messages').insert({
+        sender_id: (user?.id && isValidUUID(user.id)) ? user.id : null,
+        sender_name: user.full_name || (isFarmer ? 'Farmer' : 'Buyer'),
+        receiver_id: (targetFarmerId && isValidUUID(targetFarmerId)) ? targetFarmerId : null,
+        receiver_name: targetFarmerName,
+        product_name: productContext?.product_name || null,
+        listing_id: productContext?.listing_id || null,
+        content: text
+      });
+    } catch (e) {
+      console.warn('Supabase message sync notice:', e);
+    }
+
+    showToast('Message sent to farmer', 'success');
     return true;
   };
 

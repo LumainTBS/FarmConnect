@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { 
   Menu, Search, ShoppingBag, PlusCircle, 
   Award, TrendingUp, ChevronDown, LogOut, User, Package, Sprout, CreditCard, ShieldCheck,
-  Bell, CheckCircle, AlertTriangle, ArrowRight
+  Bell, CheckCircle, AlertTriangle, ArrowRight, MessageSquare
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import MobileDrawer from './MobileDrawer';
@@ -73,9 +73,11 @@ export default function Header() {
                   <span className="text-[9px] bg-amber-100 text-amber-900 font-extrabold px-1.5 py-0.2 rounded-md">PRO</span>
                 </Link>
               )}
-              <Link to="/subscriptions" className="hover:text-brand-forest transition-colors text-emerald-800 font-semibold">
-                Pricing
-              </Link>
+              {user?.role !== 'buyer' && (
+                <Link to="/subscriptions" className="hover:text-brand-forest transition-colors text-emerald-800 font-semibold">
+                  Pricing
+                </Link>
+              )}
             </nav>
 
             {/* Desktop Search Bar */}
@@ -265,6 +267,14 @@ export default function Header() {
                               <Sprout className="w-4 h-4 text-emerald-600" />
                               <span>Plant Logs</span>
                             </Link>
+                            <Link 
+                              to="/messages" 
+                              onClick={() => setIsDropdownOpen(false)}
+                              className="flex items-center space-x-2 px-4 py-2 hover:bg-slate-50 hover:text-brand-forest"
+                            >
+                              <MessageSquare className="w-4 h-4 text-emerald-600" />
+                              <span>Messages & Inquiries</span>
+                            </Link>
                           </>
                         ) : (
                           <>
@@ -283,6 +293,14 @@ export default function Header() {
                             >
                               <Package className="w-4 h-4 text-emerald-600" />
                               <span>My Orders</span>
+                            </Link>
+                            <Link 
+                              to="/messages" 
+                              onClick={() => setIsDropdownOpen(false)}
+                              className="flex items-center space-x-2 px-4 py-2 hover:bg-slate-50 hover:text-brand-forest"
+                            >
+                              <MessageSquare className="w-4 h-4 text-emerald-600" />
+                              <span>Messages & Inquiries</span>
                             </Link>
                           </>
                         )}
