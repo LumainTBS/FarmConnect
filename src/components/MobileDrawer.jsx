@@ -7,7 +7,7 @@ import {
 import { useApp } from '../context/AppContext';
 
 export default function MobileDrawer({ isOpen, onClose }) {
-  const { user, logoutUser } = useApp();
+  const { user, logoutUser, unreadMessagesCount } = useApp();
   const navigate = useNavigate();
 
   if (!isOpen) return null;
@@ -100,10 +100,17 @@ export default function MobileDrawer({ isOpen, onClose }) {
 
             <button 
               onClick={() => handleNavigate('/messages')}
-              className="w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl hover:bg-emerald-900/50 text-emerald-100 hover:text-white text-sm font-medium text-left"
+              className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl hover:bg-emerald-900/50 text-emerald-100 hover:text-white text-sm font-medium text-left"
             >
-              <MessageSquare className="w-5 h-5 text-emerald-400" />
-              <span>Messages</span>
+              <div className="flex items-center space-x-3">
+                <MessageSquare className="w-5 h-5 text-emerald-400" />
+                <span>Messages</span>
+              </div>
+              {unreadMessagesCount > 0 && (
+                <span className="bg-emerald-500 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+                  {unreadMessagesCount}
+                </span>
+              )}
             </button>
 
             <button 

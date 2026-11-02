@@ -4,11 +4,10 @@ import { Home, ShoppingBag, Package, MessageSquare, User } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 export default function MobileNav() {
-  const { user, cart, messages } = useApp();
+  const { user, cart, unreadMessagesCount } = useApp();
 
   const isFarmer = user?.role === 'farmer';
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const hasUnreadMessages = messages.some(m => m.unread);
 
   const navItems = [
     { label: 'Home', path: '/', icon: Home },
@@ -27,7 +26,8 @@ export default function MobileNav() {
       label: 'Messages', 
       path: '/messages', 
       icon: MessageSquare, 
-      badgeDot: hasUnreadMessages 
+      badge: unreadMessagesCount > 0 ? (unreadMessagesCount > 9 ? '9+' : unreadMessagesCount) : null,
+      badgeDot: unreadMessagesCount > 0 
     },
     { 
       label: isFarmer ? 'Dashboard' : 'Account', 

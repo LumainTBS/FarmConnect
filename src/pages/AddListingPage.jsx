@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Upload, X, ArrowLeft, Eye, Sparkles, Lock, AlertTriangle } from 'lucide-react';
+import { Upload, X, ArrowLeft, Eye, Sparkles, Lock, AlertTriangle, ShieldCheck, ShieldAlert, Clock } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { PRODUCT_CATEGORIES, SUBSCRIPTION_TIERS, isFarmerListing } from '../lib/supabase';
 
@@ -58,13 +58,25 @@ export default function AddListingPage() {
     setImageUrls(prev => prev.filter((_, i) => i !== index));
   };
 
-  // Validation checks
+  // Verification & Location checks
+  const isVerified = user?.is_verified === true || user?.verification_status === 'approved';
+  const hasUploadedDoc = Boolean(user?.id_document_url);
+  const isPendingReview = hasUploadedDoc && !isVerified;
   const isLocationMissing = !user?.location && !user?.inkhundla && !user?.street_address;
   const isVerificationRejected = user?.verification_status === 'rejected';
 
   const handleProceedToPreview = (e) => {
     e.preventDefault();
     if (!productType || !price || !quantity) return;
+    if (!isVerified) {
+      showToast(
+        isPendingReview
+          ? 'Verification Under Review: Admin approval is required before listing produce.'
+          : 'Producer Verification Required: Please submit your National ID and proof of residency first.',
+        'error'
+      );
+      return;
+    }
     if (isLocationMissing) {
       showToast('Please enter your farm location before publishing produce.', 'error');
       return;
@@ -77,6 +89,10 @@ export default function AddListingPage() {
   };
 
   const handlePublish = async () => {
+    if (!isVerified) {
+      showToast('Producer verification required to publish listings.', 'error');
+      return;
+    }
     if (isLocationMissing) {
       showToast('Location required before listing produce.', 'error');
       return;
@@ -126,6 +142,71 @@ export default function AddListingPage() {
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-4 pb-20 space-y-6">
       
+      {/* PRODUCER ID & RESIDENCY VERIFICATION GATE BANNER */}
+      {!isVerified && (
+        <div className={`p-5 rounded-3xl border shadow-sm ${
+          isPendingReview
+            ? 'bg-amber-50/80 border-amber-300 text-amber-950'
+            : isVerificationRejected
+            ? 'bg-rose-50/80 border-rose-300 text-rose-950'
+            : 'bg-emerald-50/90 border-emerald-300 text-emerald-950'
+        }`}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start space-x-3.5">
+              <div className={`p-3 rounded-2xl shrink-0 ${
+                isPendingReview 
+                  ? 'bg-amber-100 text-amber-800' 
+                  : isVerificationRejected
+                  ? 'bg-rose-100 text-rose-800'
+                  : 'bg-emerald-100 text-emerald-800'
+              }`}>
+                {isPendingReview ? (
+                  <Clock className="w-5 h-5 animate-pulse" />
+                ) : (
+                  <ShieldAlert className="w-5 h-5" />
+                )}
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center space-x-2">
+                  <h4 className="font-extrabold text-xs uppercase tracking-wider">
+                    {isPendingReview 
+                      ? 'Verification Under Review' 
+                      : isVerificationRejected 
+                      ? 'Verification Resubmission Required' 
+                      : 'Producer Verification Required'}
+                  </h4>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    isPendingReview 
+                      ? 'bg-amber-200 text-amber-900' 
+                      : isVerificationRejected 
+                      ? 'bg-rose-200 text-rose-900' 
+                      : 'bg-emerald-200 text-emerald-900'
+                  }`}>
+                    {isPendingReview ? 'Under Review' : isVerificationRejected ? 'Action Needed' : 'Mandatory'}
+                  </span>
+                </div>
+                <p className="text-xs leading-relaxed opacity-90">
+                  {isPendingReview ? (
+                    <>Your National ID and Proof of Residency have been uploaded and are currently under review by FarmConnect administrators. You will be able to publish listings as soon as your account is approved.</>
+                  ) : isVerificationRejected ? (
+                    <>Your previous identification documents could not be verified. Please submit an updated National ID and proof of farm residency.</>
+                  ) : (
+                    <>In accordance with Eswatini agricultural standards and buyer safety policies, all local producers must submit their <strong>National ID</strong> and <strong>Proof of Farm Residency</strong> before listing produce.</>
+                  )}
+                </p>
+              </div>
+            </div>
+            
+            <Link
+              to="/account"
+              className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs transition-colors whitespace-nowrap text-center shrink-0"
+            >
+              {isPendingReview ? 'View Documents' : 'Submit ID Documents →'}
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* LISTING QUOTA LIMIT REACHED BANNER */}
       {isLimitReached && (
         <div className="p-5 bg-rose-50 border border-rose-300 rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm text-rose-950">
@@ -353,10 +434,14 @@ export default function AddListingPage() {
 
           <button
             type="submit"
-            className="w-full py-3.5 rounded-xl bg-brand-forest text-white font-bold text-sm hover:bg-brand-dark transition-colors shadow-sm flex items-center justify-center space-x-2 cursor-pointer"
+            className={`w-full py-3.5 rounded-xl font-bold text-sm transition-colors shadow-sm flex items-center justify-center space-x-2 cursor-pointer ${
+              !isVerified 
+                ? 'bg-slate-300 text-slate-600 hover:bg-slate-400' 
+                : 'bg-brand-forest text-white hover:bg-brand-dark'
+            }`}
           >
             <Eye className="w-4 h-4" />
-            <span>Preview Listing</span>
+            <span>{!isVerified ? 'Verification Required to Proceed' : 'Preview Listing'}</span>
           </button>
         </form>
       ) : (
@@ -398,9 +483,14 @@ export default function AddListingPage() {
             </button>
             <button
               onClick={handlePublish}
-              className="flex-1 py-3 rounded-xl bg-brand-forest text-white text-xs font-bold hover:bg-brand-dark shadow-sm cursor-pointer"
+              disabled={!isVerified}
+              className={`flex-1 py-3 rounded-xl text-xs font-bold shadow-sm transition-colors ${
+                !isVerified
+                  ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                  : 'bg-brand-forest text-white hover:bg-brand-dark cursor-pointer'
+              }`}
             >
-              Publish Listing
+              {!isVerified ? 'Verification Required' : 'Publish Listing'}
             </button>
           </div>
         </div>

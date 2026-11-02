@@ -38,6 +38,9 @@ export const AppProvider = ({ children }) => {
   // Toast notification state
   const [toast, setToast] = useState(null);
 
+  // Role Selection Modal state (Shown on sign-in before accessing app)
+  const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
+
   const showToast = (message, type = 'success') => {
     setToast({ message, type, id: Date.now() });
     setTimeout(() => {
@@ -65,7 +68,10 @@ export const AppProvider = ({ children }) => {
       const meta = authUser.user_metadata || {};
       const fallbackName = meta.full_name || meta.name || authUser.email?.split('@')[0] || 'User';
       const fallbackAvatar = meta.avatar_url || meta.picture || 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=150&q=80';
-      const fallbackRole = meta.role || profile?.role || 'farmer';
+      
+      // Determine if role was explicitly chosen by the user
+      const isRoleExplicitlyChosen = localStorage.getItem(`farmconnect_role_selected_${authUser.id}`) === 'true' || Boolean(meta.role_selected);
+      const fallbackRole = meta.role || profile?.role || 'buyer';
 
       let synced = null;
 
@@ -92,6 +98,7 @@ export const AppProvider = ({ children }) => {
           email: authUser.email,
           full_name: updates.full_name || profile.full_name || fallbackName,
           role: profile.role || fallbackRole,
+          role_selected: isRoleExplicitlyChosen,
           phone_number: profile.phone_number || '',
           profile_picture_url: updates.profile_picture_url || profile.profile_picture_url || fallbackAvatar,
           id_document_url: profile.id_document_url || null,
@@ -113,6 +120,7 @@ export const AppProvider = ({ children }) => {
           email: authUser.email,
           full_name: fallbackName,
           role: fallbackRole,
+          role_selected: isRoleExplicitlyChosen,
           phone_number: '',
           profile_picture_url: fallbackAvatar,
           id_document_url: null,
@@ -141,6 +149,12 @@ export const AppProvider = ({ children }) => {
 
       setUser(synced);
       localStorage.setItem('farmconnect_user', JSON.stringify(synced));
+
+      // Trigger Role Selection Modal if user has not explicitly chosen their role
+      if (!isRoleExplicitlyChosen) {
+        setIsRoleModalOpen(true);
+      }
+
       return synced;
     } catch (err) {
       console.error('Error syncing user profile:', err);
@@ -382,12 +396,138 @@ export const AppProvider = ({ children }) => {
       }
     });
 
-    // 3. Fetch initial database records
-    fetchSupabaseListings();
-    fetchSupabaseFarmers();
-
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription?.unsubscribe();
+    };
   }, []);
+
+  // REAL SUPABASE MESSAGING ENGINE
+  const fetchSupabaseMessages = async (currentUserId) => {
+    const targetUserId = currentUserId || user?.id;
+    if (!targetUserId || !isValidUUID(targetUserId)) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .or(`sender_id.eq.${targetUserId},receiver_id.eq.${targetUserId}`)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.warn('Error fetching messages from Supabase:', error.message);
+        return;
+      }
+
+      if (data) {
+        const convs = {};
+        data.forEach(msg => {
+          const isSender = msg.sender_id === targetUserId;
+          const partnerId = isSender ? msg.receiver_id : msg.sender_id;
+          const partnerName = isSender ? (msg.receiver_name || 'Producer') : (msg.sender_name || 'Buyer');
+          if (!partnerId) return;
+
+          const partnerFarmer = farmers.find(f => f.id === partnerId);
+
+          if (!convs[partnerId]) {
+            convs[partnerId] = {
+              id: `conv-${partnerId}`,
+              conversation_with_id: partnerId,
+              conversation_with_name: partnerName,
+              farmer_avatar: partnerFarmer?.avatar || (isSender ? 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=150&q=80' : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80'),
+              farmer_location: partnerFarmer?.location || partnerFarmer?.inkhundla || 'Eswatini',
+              product_context: msg.product_name ? {
+                product_name: msg.product_name,
+                listing_id: msg.listing_id
+              } : null,
+              last_message: msg.content,
+              last_time: new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              unread: false,
+              chats: []
+            };
+          }
+
+          convs[partnerId].last_message = msg.content;
+          convs[partnerId].last_time = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          if (!isSender && !msg.is_read) {
+            convs[partnerId].unread = true;
+          }
+
+          convs[partnerId].chats.push({
+            id: msg.id,
+            sender: isSender ? (user?.role === 'farmer' ? 'farmer' : 'buyer') : (user?.role === 'farmer' ? 'buyer' : 'farmer'),
+            sender_id: msg.sender_id,
+            sender_name: msg.sender_name,
+            text: msg.content,
+            time: new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            created_at: msg.created_at
+          });
+        });
+
+        const list = Object.values(convs);
+        setMessages(list);
+      }
+    } catch (e) {
+      console.warn('fetchSupabaseMessages notice:', e);
+    }
+  };
+
+  const markConversationAsRead = async (partnerId) => {
+    if (!user?.id || !partnerId) return;
+
+    // Local optimistic update
+    setMessages(prev => prev.map(conv => 
+      conv.conversation_with_id === partnerId 
+        ? { ...conv, unread: false }
+        : conv
+    ));
+
+    // Supabase update
+    try {
+      await supabase
+        .from('messages')
+        .update({ is_read: true })
+        .eq('receiver_id', user.id)
+        .eq('sender_id', partnerId);
+    } catch (e) {
+      console.warn('Error marking messages read:', e);
+    }
+  };
+
+  // Real-time message subscription and polling lifecycle
+  useEffect(() => {
+    if (!user?.id || !isValidUUID(user.id)) return;
+
+    fetchSupabaseMessages(user.id);
+
+    // 1. Supabase Realtime channel for instant push updates
+    const channel = supabase
+      .channel(`incoming_messages_${user.id}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `receiver_id=eq.${user.id}`
+      }, (payload) => {
+        if (payload.new) {
+          fetchSupabaseMessages(user.id);
+          showToast(`💬 New message from ${payload.new.sender_name || 'Buyer'}: "${payload.new.content.slice(0, 35)}..."`, 'info');
+        }
+      })
+      .subscribe();
+
+    // 2. Continuous 6-second polling as robust backup
+    const pollInterval = setInterval(() => {
+      fetchSupabaseMessages(user.id);
+    }, 6000);
+
+    return () => {
+      clearInterval(pollInterval);
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
+
+  // Unread message count across all conversations
+  const unreadMessagesCount = (messages || []).reduce((count, conv) => count + (conv.unread ? 1 : 0), 0);
 
   // Save to localStorage
   useEffect(() => {
@@ -1063,7 +1203,7 @@ export const AppProvider = ({ children }) => {
     });
 
     try {
-      await supabase.from('messages').insert({
+      const { error } = await supabase.from('messages').insert({
         sender_id: (user?.id && isValidUUID(user.id)) ? user.id : null,
         sender_name: user.full_name || (isFarmer ? 'Farmer' : 'Buyer'),
         receiver_id: (targetFarmerId && isValidUUID(targetFarmerId)) ? targetFarmerId : null,
@@ -1072,11 +1212,18 @@ export const AppProvider = ({ children }) => {
         listing_id: productContext?.listing_id || null,
         content: text
       });
+
+      if (error) {
+        console.warn('Supabase message insert error:', error.message);
+      } else {
+        // Re-sync with Supabase
+        fetchSupabaseMessages(user.id);
+      }
     } catch (e) {
       console.warn('Supabase message sync notice:', e);
     }
 
-    showToast('Message sent to farmer', 'success');
+    showToast('Message sent successfully', 'success');
     return true;
   };
 
@@ -1123,6 +1270,11 @@ export const AppProvider = ({ children }) => {
       adminChangeFarmerTier,
       messages,
       sendMessage,
+      unreadMessagesCount,
+      markConversationAsRead,
+      fetchSupabaseMessages,
+      isRoleModalOpen,
+      setIsRoleModalOpen,
       plantLogs,
       addPlantLog,
       deletePlantLog,

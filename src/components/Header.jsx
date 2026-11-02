@@ -9,7 +9,15 @@ import { useApp } from '../context/AppContext';
 import MobileDrawer from './MobileDrawer';
 
 export default function Header() {
-  const { user, cart, logoutUser, restockAlerts, dismissRestockAlert, markRestockAlertAsRead } = useApp();
+  const { 
+    user, 
+    cart, 
+    logoutUser, 
+    restockAlerts, 
+    dismissRestockAlert, 
+    markRestockAlertAsRead,
+    unreadMessagesCount
+  } = useApp();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -40,69 +48,85 @@ export default function Header() {
 
   return (
     <>
-      <header className="sticky top-0 z-30 bg-white border-b border-slate-200/80 shadow-xs">
+      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16 gap-4">
+          <div className="flex items-center justify-between h-16 gap-6">
             
             {/* Logo & Brand */}
-            <Link to="/" className="flex items-center space-x-3 shrink-0">
-              <img src="/logo.png" alt="Farm Connect Eswatini" className="w-9 h-9 object-contain" />
+            <Link to="/" className="flex items-center space-x-3 shrink-0 group">
+              <img src="/logo.png" alt="Farm Connect Eswatini" className="w-9 h-9 object-contain group-hover:scale-105 transition-transform" />
               <div>
-                <span className="font-bold text-slate-900 text-lg sm:text-xl tracking-tight block leading-none">
+                <span className="font-extrabold text-slate-900 text-lg sm:text-xl tracking-tight block leading-none">
                   Farm Connect
                 </span>
-                <span className="text-[10px] text-brand-forest font-semibold tracking-wider uppercase block mt-0.5">
+                <span className="text-[10px] text-brand-forest font-bold tracking-widest uppercase block mt-0.5">
                   ESWATINI
                 </span>
               </div>
             </Link>
 
             {/* Desktop Navigation Links */}
-            <nav className="hidden md:flex items-center space-x-4 lg:space-x-5 text-sm font-medium text-slate-600">
-              <Link to="/" className="hover:text-brand-forest transition-colors">Home</Link>
+            <nav className="hidden md:flex items-center space-x-6 lg:space-x-8 text-sm font-medium text-slate-600">
               <Link to="/marketplace" className="hover:text-brand-forest transition-colors">Marketplace</Link>
               <Link to="/farmers" className="hover:text-brand-forest transition-colors">Farmers</Link>
-              <Link to="/recommended-farmers" className="hover:text-brand-forest transition-colors flex items-center space-x-1">
+              <Link to="/recommended-farmers" className="hover:text-brand-forest transition-colors flex items-center space-x-1.5">
                 <Award className="w-4 h-4 text-amber-500" />
                 <span>Leaderboard</span>
               </Link>
               {(isFarmer || user?.role === 'admin') && (
-                <Link to="/market-trends" className="hover:text-brand-forest transition-colors flex items-center space-x-1">
+                <Link to="/market-trends" className="hover:text-brand-forest transition-colors flex items-center space-x-1.5">
                   <TrendingUp className="w-4 h-4 text-emerald-600" />
                   <span>Trends</span>
-                  <span className="text-[9px] bg-amber-100 text-amber-900 font-extrabold px-1.5 py-0.2 rounded-md">PRO</span>
+                  <span className="text-[9px] bg-emerald-100 text-emerald-800 font-extrabold px-1.5 py-0.5 rounded-md">PRO</span>
                 </Link>
               )}
-              {user?.role !== 'buyer' && (
-                <Link to="/subscriptions" className="hover:text-brand-forest transition-colors text-emerald-800 font-semibold">
+              {!isFarmer && (
+                <Link to="/subscriptions" className="hover:text-brand-forest transition-colors">
                   Pricing
                 </Link>
               )}
             </nav>
 
             {/* Desktop Search Bar */}
-            <form onSubmit={handleSearchSubmit} className="hidden lg:flex flex-1 max-w-xs relative">
+            <form onSubmit={handleSearchSubmit} className="hidden xl:flex flex-1 max-w-xs relative">
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search produce, farmers..."
-                className="w-full pl-9 pr-4 py-1.5 text-xs bg-slate-100 border border-transparent rounded-full focus:bg-white focus:border-brand-forest focus:outline-none transition-all"
+                className="w-full pl-9 pr-4 py-1.5 text-xs bg-slate-100/80 border border-slate-200/60 rounded-full focus:bg-white focus:border-brand-forest focus:outline-none transition-all"
               />
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             </form>
 
             {/* Header Right Actions */}
-            <div className="flex items-center space-x-2 sm:space-x-3">
+            <div className="flex items-center space-x-2 sm:space-x-3.5">
               
               {/* Farmer quick add listing (if farmer) */}
               {isFarmer && (
                 <Link
                   to="/farmer/listings/new"
-                  className="hidden sm:flex items-center space-x-1.5 bg-brand-forest text-white text-xs font-semibold px-3 py-2 rounded-lg hover:bg-brand-dark transition-colors shadow-xs"
+                  className="hidden sm:inline-flex items-center space-x-1.5 bg-brand-forest text-white text-xs font-semibold px-3.5 py-2 rounded-xl hover:bg-brand-dark transition-all shadow-xs hover:shadow-sm"
                 >
                   <PlusCircle className="w-4 h-4" />
                   <span>Add Listing</span>
+                </Link>
+              )}
+
+              {/* Direct Messages Icon with Unread Badge */}
+              {user && (
+                <Link
+                  to="/messages"
+                  className="relative p-2 text-slate-600 hover:text-brand-forest rounded-xl hover:bg-slate-100 transition-colors"
+                  aria-label="Direct Messages"
+                  title="Messages & Inquiries"
+                >
+                  <MessageSquare className="w-5 h-5" />
+                  {unreadMessagesCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 bg-brand-forest text-white text-[10px] font-extrabold min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center shadow-xs border-2 border-white animate-pulse">
+                      {unreadMessagesCount > 99 ? '99+' : unreadMessagesCount}
+                    </span>
+                  )}
                 </Link>
               )}
 
@@ -114,12 +138,13 @@ export default function Header() {
                       setIsNotifOpen(!isNotifOpen);
                       setIsDropdownOpen(false);
                     }}
-                    className="relative p-2 text-slate-700 hover:text-brand-forest rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
+                    className="relative p-2 text-slate-600 hover:text-brand-forest rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
                     aria-label="Farmer Notifications"
+                    title="Restock Alerts"
                   >
                     <Bell className="w-5 h-5" />
                     {unreadAlertsCount > 0 && (
-                      <span className="absolute top-0 right-0 bg-rose-600 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center animate-pulse shadow-xs">
+                      <span className="absolute -top-0.5 -right-0.5 bg-rose-600 text-white text-[10px] font-bold min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center animate-pulse shadow-xs border-2 border-white">
                         {unreadAlertsCount}
                       </span>
                     )}

@@ -7,7 +7,7 @@ import {
 import { useApp } from '../context/AppContext';
 
 export default function MessagesPage() {
-  const { messages, sendMessage, user, farmers, listings } = useApp();
+  const { messages, sendMessage, user, farmers, listings, markConversationAsRead } = useApp();
   const [searchParams] = useSearchParams();
   const initialFarmerId = searchParams.get('farmer');
 
@@ -38,16 +38,23 @@ export default function MessagesPage() {
     }
   }, [initialFarmerId, validMessages, activeConvId]);
 
+  const activeConv = useMemo(() => {
+    return validMessages.find(m => m.id === activeConvId) || validMessages[0] || null;
+  }, [validMessages, activeConvId]);
+
+  // Mark active conversation as read in Supabase and app state
+  useEffect(() => {
+    if (activeConv?.conversation_with_id && markConversationAsRead) {
+      markConversationAsRead(activeConv.conversation_with_id);
+    }
+  }, [activeConv?.conversation_with_id, markConversationAsRead]);
+
   // Scroll to bottom of chat when new message arrives
   useEffect(() => {
     if (chatScrollRef.current) {
       chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
     }
   }, [activeConvId, validMessages]);
-
-  const activeConv = useMemo(() => {
-    return validMessages.find(m => m.id === activeConvId) || validMessages[0] || null;
-  }, [validMessages, activeConvId]);
 
   // Filter conversations list by search
   const filteredConversations = useMemo(() => {
@@ -165,9 +172,16 @@ export default function MessagesPage() {
                         <h3 className="font-bold text-xs text-slate-900 truncate">
                           {conv.conversation_with_name}
                         </h3>
-                        <span className="text-[10px] text-slate-400 shrink-0">
-                          {conv.last_time || 'Recent'}
-                        </span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-[10px] text-slate-400">
+                            {conv.last_time || 'Recent'}
+                          </span>
+                          {conv.unread_count > 0 && (
+                            <span className="bg-brand-forest text-white text-[10px] font-extrabold min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center animate-pulse">
+                              {conv.unread_count}
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       {conv.product_context && (
@@ -177,7 +191,7 @@ export default function MessagesPage() {
                         </div>
                       )}
 
-                      <p className="text-xs text-slate-500 truncate mt-1">
+                      <p className={`text-xs truncate mt-1 ${conv.unread_count > 0 ? 'font-bold text-slate-900' : 'text-slate-500'}`}>
                         {conv.last_message || 'Tap to view conversation history'}
                       </p>
                     </div>

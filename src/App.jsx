@@ -1,10 +1,11 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { AppProvider } from './context/AppContext';
+import { AppProvider, useApp } from './context/AppContext';
 import Header from './components/Header';
 import MobileNav from './components/MobileNav';
 import Footer from './components/Footer';
 import Toast from './components/Toast';
+import RoleSelectionModal from './components/RoleSelectionModal';
 
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
@@ -34,57 +35,69 @@ import AdminDashboardPage from './pages/AdminDashboardPage';
 import TermsPage from './pages/TermsPage';
 import CookieConsent from './components/CookieConsent';
 
+function AppContent() {
+  const { isRoleModalOpen, setIsRoleModalOpen } = useApp();
+
+  return (
+    <Router>
+      <div className="min-h-screen flex flex-col bg-[#F8F9FA] text-slate-900 font-sans selection:bg-brand-forest selection:text-white">
+        <Header />
+        <main className="flex-1">
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/marketplace" element={<MarketplacePage />} />
+            <Route path="/listing/:id" element={<ListingDetailPage />} />
+            <Route path="/cart" element={<CartPage />} />
+            <Route path="/checkout" element={<CheckoutPage />} />
+            <Route path="/orders" element={<OrdersPage isFarmerView={false} />} />
+            <Route path="/orders/:id" element={<OrderDetailPage />} />
+
+            {/* Buyer Routes */}
+            <Route path="/buyer/dashboard" element={<BuyerDashboardPage />} />
+
+            {/* Farmer Routes */}
+            <Route path="/farmer/dashboard" element={<FarmerDashboardPage />} />
+            <Route path="/farmer/listings" element={<FarmerListingsPage />} />
+            <Route path="/farmer/listings/new" element={<AddListingPage />} />
+            <Route path="/farmer/orders" element={<OrdersPage isFarmerView={true} />} />
+            <Route path="/farmer/plant-logs" element={<PlantLogsPage />} />
+
+            {/* Discovery & Info */}
+            <Route path="/farmers" element={<FarmersDirectoryPage />} />
+            <Route path="/farmer/:id" element={<FarmerProfilePage />} />
+            <Route path="/recommended-farmers" element={<RecommendedFarmersPage />} />
+            <Route path="/market-trends" element={<MarketTrendsPage />} />
+            <Route path="/messages" element={<MessagesPage />} />
+            <Route path="/account" element={<AccountPage />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/terms" element={<TermsPage />} />
+
+            {/* Subscriptions & Admin */}
+            <Route path="/subscriptions" element={<SubscriptionsPage />} />
+            <Route path="/admin" element={<AdminDashboardPage />} />
+            
+            <Route path="*" element={<HomePage />} />
+          </Routes>
+        </main>
+        <Footer />
+        <MobileNav />
+        <Toast />
+        <CookieConsent />
+        <RoleSelectionModal 
+          isOpen={isRoleModalOpen} 
+          onClose={() => setIsRoleModalOpen(false)} 
+        />
+      </div>
+    </Router>
+  );
+}
+
 export default function App() {
   return (
     <AppProvider>
-      <Router>
-        <div className="min-h-screen flex flex-col bg-[#F8F9FA] text-slate-900 font-sans selection:bg-brand-forest selection:text-white">
-          <Header />
-          <main className="flex-1">
-            <Routes>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/register" element={<RegisterPage />} />
-              <Route path="/marketplace" element={<MarketplacePage />} />
-              <Route path="/listing/:id" element={<ListingDetailPage />} />
-              <Route path="/cart" element={<CartPage />} />
-              <Route path="/checkout" element={<CheckoutPage />} />
-              <Route path="/orders" element={<OrdersPage isFarmerView={false} />} />
-              <Route path="/orders/:id" element={<OrderDetailPage />} />
-
-              {/* Buyer Routes */}
-              <Route path="/buyer/dashboard" element={<BuyerDashboardPage />} />
-
-              {/* Farmer Routes */}
-              <Route path="/farmer/dashboard" element={<FarmerDashboardPage />} />
-              <Route path="/farmer/listings" element={<FarmerListingsPage />} />
-              <Route path="/farmer/listings/new" element={<AddListingPage />} />
-              <Route path="/farmer/orders" element={<OrdersPage isFarmerView={true} />} />
-              <Route path="/farmer/plant-logs" element={<PlantLogsPage />} />
-
-              {/* Discovery & Info */}
-              <Route path="/farmers" element={<FarmersDirectoryPage />} />
-              <Route path="/farmer/:id" element={<FarmerProfilePage />} />
-              <Route path="/recommended-farmers" element={<RecommendedFarmersPage />} />
-              <Route path="/market-trends" element={<MarketTrendsPage />} />
-              <Route path="/messages" element={<MessagesPage />} />
-              <Route path="/account" element={<AccountPage />} />
-              <Route path="/about" element={<AboutPage />} />
-              <Route path="/terms" element={<TermsPage />} />
-
-              {/* Subscriptions & Admin */}
-              <Route path="/subscriptions" element={<SubscriptionsPage />} />
-              <Route path="/admin" element={<AdminDashboardPage />} />
-              
-              <Route path="*" element={<HomePage />} />
-            </Routes>
-          </main>
-          <Footer />
-          <MobileNav />
-          <Toast />
-          <CookieConsent />
-        </div>
-      </Router>
+      <AppContent />
     </AppProvider>
   );
 }
