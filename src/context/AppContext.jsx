@@ -1,8 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { 
   supabase, 
-  INITIAL_LISTINGS, 
-  INITIAL_FARMERS, 
   INITIAL_SEASONAL_TIPS,
   SUBSCRIPTION_TIERS,
   calculateOrderCommission,
@@ -17,9 +15,6 @@ export const isFarmerListing = (listing, user) => {
   if (user.id && listing.farmer_id === user.id) return true;
   if (user.email && listing.farmer_email && user.email.toLowerCase() === listing.farmer_email.toLowerCase()) return true;
   if (user.full_name && listing.farmer_name && user.full_name.toLowerCase() === listing.farmer_name.toLowerCase()) return true;
-  if ((!user.id && !user.farmer_id) || user.id === 'usr-farmer-demo' || user.farmer_id === 'frm-1') {
-    return listing.farmer_id === 'frm-1';
-  }
   return false;
 };
 
@@ -30,9 +25,6 @@ export const isFarmerOrder = (order, user) => {
   if (user.id && order.farmer_id === user.id) return true;
   if (user.email && order.farmer_email && user.email.toLowerCase() === order.farmer_email.toLowerCase()) return true;
   if (user.full_name && order.farmer_name && user.full_name.toLowerCase() === order.farmer_name.toLowerCase()) return true;
-  if ((!user.id && !user.farmer_id) || user.id === 'usr-farmer-demo' || user.farmer_id === 'frm-1') {
-    return order.farmer_id === 'frm-1';
-  }
   return false;
 };
 
@@ -158,16 +150,32 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // Listings state (Real Supabase + Fallback)
+  // Listings state (Pure real database listings)
   const [listings, setListings] = useState(() => {
-    const saved = localStorage.getItem('farmconnect_listings');
-    return saved ? JSON.parse(saved) : INITIAL_LISTINGS;
+    try {
+      const saved = localStorage.getItem('farmconnect_listings');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return Array.isArray(parsed) ? parsed.filter(l => l && !String(l.id).startsWith('lst-')) : [];
+      }
+    } catch (e) {
+      console.warn('Listing cache read error:', e);
+    }
+    return [];
   });
 
-  // Farmers state (Real registered farmers from public.users + Seed Cooperatives)
+  // Farmers state (Real registered users with role=farmer from public.users)
   const [farmers, setFarmers] = useState(() => {
-    const saved = localStorage.getItem('farmconnect_farmers');
-    return saved ? JSON.parse(saved) : INITIAL_FARMERS;
+    try {
+      const saved = localStorage.getItem('farmconnect_farmers');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return Array.isArray(parsed) ? parsed.filter(f => f && !String(f.id).startsWith('frm-')) : [];
+      }
+    } catch (e) {
+      console.warn('Farmers cache read error:', e);
+    }
+    return [];
   });
 
   // Cart state
@@ -176,40 +184,28 @@ export const AppProvider = ({ children }) => {
     return saved ? JSON.parse(saved) : [];
   });
 
-  // Orders state
+  // Orders state (Real user orders)
   const [orders, setOrders] = useState(() => {
-    const saved = localStorage.getItem('farmconnect_orders');
-    return saved ? JSON.parse(saved) : [
-      {
-        id: 'FC00123',
-        listing_id: 'lst-1',
-        product_name: 'Fresh Spinach',
-        farmer_name: 'Matsanjeni Farm',
-        farmer_id: 'frm-1',
-        buyer_id: 'usr-buyer-demo',
-        quantity: 2,
-        unit: 'kg',
-        unit_price: 20,
-        total_price: 40,
-        delivery_fee: 10,
-        order_status: 'pending',
-        payment_status: 'paid',
-        payment_method: 'MTN Mobile Money (MoMo)',
-        created_at: '2026-09-23T14:30:00Z',
-        rated: false,
-        image_url: 'https://images.unsplash.com/photo-1576045057995-568f588f82fb?auto=format&fit=crop&w=300&q=80'
+    try {
+      const saved = localStorage.getItem('farmconnect_orders');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return Array.isArray(parsed) ? parsed.filter(o => o && o.id !== 'FC00123' && o.farmer_id !== 'frm-1') : [];
       }
-    ];
+    } catch (e) {
+      console.warn('Orders cache read error:', e);
+    }
+    return [];
   });
 
-  // Messages state with safe hydration
+  // Messages state with safe hydration (Real user conversations)
   const [messages, setMessages] = useState(() => {
     const saved = localStorage.getItem('farmconnect_messages');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.filter(m => m && typeof m === 'object').map(m => ({
+          return parsed.filter(m => m && typeof m === 'object' && m.id !== 'msg-1' && m.id !== 'msg-2' && m.conversation_with_id !== 'frm-1' && m.conversation_with_id !== 'frm-2').map(m => ({
             ...m,
             chats: Array.isArray(m.chats) ? m.chats : (m.content ? [{ sender: 'buyer', text: m.content, time: 'Recent' }] : [])
           }));
@@ -218,125 +214,47 @@ export const AppProvider = ({ children }) => {
         console.warn('Error reading saved messages:', e);
       }
     }
-    return [
-      {
-        id: 'msg-1',
-        conversation_with_id: 'frm-1',
-        conversation_with_name: 'Matsanjeni Farm',
-        farmer_avatar: 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=150&q=80',
-        farmer_location: 'Matsanjeni, Shiselweni',
-        product_context: {
-          product_name: 'Fresh Spinach',
-          price: 20,
-          unit: 'kg',
-          available: 45
-        },
-        last_message: "Yes! Harvested early this morning. How many crates do you need?",
-        last_time: '10:34 AM',
-        unread: false,
-        chats: [
-          { sender: 'buyer', text: 'Hi Matsanjeni Farm, how many crates of Fresh Spinach are available today?', time: '10:30 AM' },
-          { sender: 'farmer', text: 'Hello! We have 45kg available today. Can you do pickup in Manzini or local delivery?', time: '10:32 AM' },
-          { sender: 'buyer', text: 'Can you produce 50 more crates by Friday next week?', time: '10:33 AM' },
-          { sender: 'farmer', text: 'Yes! Harvested early this morning. How many crates do you need?', time: '10:34 AM' }
-        ]
-      },
-      {
-        id: 'msg-2',
-        conversation_with_id: 'frm-2',
-        conversation_with_name: 'Mahlase Farm',
-        farmer_avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
-        farmer_location: 'Manzini South',
-        product_context: {
-          product_name: 'Red Round Tomatoes',
-          price: 25,
-          unit: 'crate',
-          available: 120
-        },
-        last_message: "We have 120 crates in stock. Delivery to Manzini hub is available.",
-        last_time: '09:15 AM',
-        unread: true,
-        chats: [
-          { sender: 'buyer', text: 'Good morning! How many crates of Tomatoes do you have left?', time: '09:10 AM' },
-          { sender: 'farmer', text: 'We have 120 crates in stock. Delivery to Manzini hub is available.', time: '09:15 AM' }
-        ]
-      }
-    ];
+    return [];
   });
 
-  // Plant Logs
+  // Plant Logs (Real farmer crop logs)
   const [plantLogs, setPlantLogs] = useState(() => {
-    const saved = localStorage.getItem('farmconnect_plantlogs');
-    return saved ? JSON.parse(saved) : [
-      {
-        id: 'pl-1',
-        crop_type: 'Spinach (Fordhook Giant)',
-        planting_date: '2026-08-15',
-        expected_harvest_date: '2026-09-30',
-        notes: 'Planted on Plot 3 with organic compost mixture. Regular drip irrigation.',
-        created_at: '2026-08-15T09:00:00Z'
+    try {
+      const saved = localStorage.getItem('farmconnect_plantlogs');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return Array.isArray(parsed) ? parsed.filter(p => p && p.id !== 'pl-1') : [];
       }
-    ];
+    } catch (e) {
+      console.warn('Plant logs cache read error:', e);
+    }
+    return [];
   });
 
-  // Restock Notification Tracking (Rate-limited to 2 attempts overall per product)
+  // Restock Notification Tracking
   const [restockAttempts, setRestockAttempts] = useState(() => {
     const saved = localStorage.getItem('farmconnect_restock_attempts');
     return saved ? JSON.parse(saved) : {};
   });
 
-  // Farmer Restock Alerts (Displays in Farmer Command Center and Header Badge)
+  // Farmer Restock Alerts
   const [restockAlerts, setRestockAlerts] = useState(() => {
     const saved = localStorage.getItem('farmconnect_restock_alerts');
     return saved ? JSON.parse(saved) : [];
   });
 
-  // Subscription Payments Ledger (Platform revenue tracking)
+  // Subscription Payments Ledger (Real payments)
   const [subscriptionPayments, setSubscriptionPayments] = useState(() => {
-    const saved = localStorage.getItem('farmconnect_subscription_payments');
-    return saved ? JSON.parse(saved) : [
-      {
-        id: 'SUB-2026-001',
-        farmer_id: 'frm-1',
-        farmer_name: 'Matsanjeni Farm',
-        farmer_email: 'matsanjeni@farmconnect.sz',
-        tier_id: 'basic',
-        tier_name: 'Basic Plan',
-        amount: 50,
-        currency: 'SZL (E)',
-        payment_method: 'MTN Mobile Money (MoMo)',
-        momo_number: '+268 7612 3456',
-        status: 'completed',
-        created_at: '2026-09-20T10:15:00Z'
-      },
-      {
-        id: 'SUB-2026-002',
-        farmer_id: 'frm-2',
-        farmer_name: 'Sibusiso Dlamini',
-        farmer_email: 'sibusiso@farmconnect.sz',
-        tier_id: 'premium',
-        tier_name: 'Premium Plan',
-        amount: 150,
-        currency: 'SZL (E)',
-        payment_method: 'Credit/Debit Card (Standard Bank)',
-        status: 'completed',
-        created_at: '2026-09-22T14:30:00Z'
-      },
-      {
-        id: 'SUB-2026-003',
-        farmer_id: 'frm-3',
-        farmer_name: 'Malkerns Agro Cooperative',
-        farmer_email: 'malkerns@farmconnect.sz',
-        tier_id: 'investor',
-        tier_name: 'Investor Plan',
-        amount: 350,
-        currency: 'SZL (E)',
-        payment_method: 'MTN Mobile Money (MoMo)',
-        momo_number: '+268 7844 9911',
-        status: 'completed',
-        created_at: '2026-09-24T09:00:00Z'
+    try {
+      const saved = localStorage.getItem('farmconnect_subscription_payments');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return Array.isArray(parsed) ? parsed.filter(s => s && !String(s.id).startsWith('SUB-2026-')) : [];
       }
-    ];
+    } catch (e) {
+      console.warn('Subscription payments cache read error:', e);
+    }
+    return [];
   });
 
   // Real Database Fetching & Sync Functions
@@ -347,11 +265,8 @@ export const AppProvider = ({ children }) => {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (!error && data && data.length > 0) {
-        // Merge real listings with initial listings if not already present
-        const dbIds = new Set(data.map(d => d.id));
-        const combined = [...data, ...INITIAL_LISTINGS.filter(l => !dbIds.has(l.id))];
-        setListings(combined);
+      if (!error && data) {
+        setListings(data);
       }
     } catch (e) {
       console.warn('Listing fetch notice:', e);
@@ -400,7 +315,7 @@ export const AppProvider = ({ children }) => {
           avatar: u.profile_picture_url || 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=150&q=80',
           cover: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1200&q=80',
           location: u.street_address ? `${u.street_address}, ${u.inkhundla || ''}` : (u.inkhundla ? `${u.inkhundla}, Manzini Region` : 'Manzini Region, Eswatini'),
-          inkhundla: u.inkhundla || 'Ludzeludze',
+          inkhundla: u.inkhundla || '',
           settlement_type: u.settlement_type || 'rural',
           is_verified: u.is_verified || false,
           verification_status: u.verification_status || (u.is_verified ? 'approved' : 'pending'),
@@ -417,9 +332,7 @@ export const AppProvider = ({ children }) => {
           created_at: u.created_at || new Date().toISOString()
         }));
 
-        const realIds = new Set(formatted.map(f => f.id));
-        const combined = [...formatted, ...INITIAL_FARMERS.filter(f => !realIds.has(f.id))];
-        setFarmers(combined);
+        setFarmers(formatted);
       }
     } catch (e) {
       console.warn('Farmer fetch notice:', e);
@@ -517,7 +430,7 @@ export const AppProvider = ({ children }) => {
   const loginUser = (userData) => {
     const updatedUser = {
       ...userData,
-      farmer_id: userData.farmer_id || (userData.role === 'farmer' ? (userData.id || 'frm-1') : undefined)
+      farmer_id: userData.farmer_id || (userData.role === 'farmer' ? userData.id : undefined)
     };
     setUser(updatedUser);
     localStorage.setItem('farmconnect_user', JSON.stringify(updatedUser));
@@ -527,7 +440,7 @@ export const AppProvider = ({ children }) => {
   const registerUser = (userData) => {
     const updatedUser = {
       ...userData,
-      farmer_id: userData.farmer_id || (userData.role === 'farmer' ? (userData.id || 'frm-1') : undefined)
+      farmer_id: userData.farmer_id || (userData.role === 'farmer' ? userData.id : undefined)
     };
     setUser(updatedUser);
     localStorage.setItem('farmconnect_user', JSON.stringify(updatedUser));
@@ -546,7 +459,7 @@ export const AppProvider = ({ children }) => {
     const updated = {
       ...user,
       role: newRole,
-      farmer_id: newRole === 'farmer' ? (user.id || 'frm-1') : undefined,
+      farmer_id: newRole === 'farmer' ? user.id : undefined,
       farmer_name: newRole === 'farmer' ? (user.full_name || 'My Farm') : undefined
     };
     setUser(updated);
@@ -769,7 +682,7 @@ export const AppProvider = ({ children }) => {
         farmer_id: item.farmer_id,
         farmer_email: item.farmer_email || '',
         farmer_tier: farmerTier,
-        buyer_id: user ? user.id : 'usr-buyer-demo',
+        buyer_id: user ? user.id : null,
         quantity: item.quantity,
         unit: item.unit,
         unit_price: item.price,
@@ -885,11 +798,11 @@ export const AppProvider = ({ children }) => {
     
     setMessages(prev => {
       const safePrev = Array.isArray(prev) ? prev.filter(c => c && typeof c === 'object') : [];
-      const targetId = listing.farmer_id || 'frm-1';
+      const targetId = listing.farmer_id;
       const existingIdx = safePrev.findIndex(c => c.conversation_with_id === targetId);
       const newChat = {
         sender: 'buyer',
-        sender_id: user?.id || 'buyer-customer',
+        sender_id: user?.id || null,
         sender_name: user?.full_name || 'Interested Buyer',
         text: restockChatText,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -1115,7 +1028,7 @@ export const AppProvider = ({ children }) => {
       const existingConvIndex = safePrev.findIndex(m => m.conversation_with_id === targetFarmerId);
       const newChat = { 
         sender: senderRole, 
-        sender_id: user.id || 'usr-active',
+        sender_id: user.id,
         sender_name: user.full_name || (isFarmer ? 'Farmer' : 'Buyer'),
         text, 
         time: timeNow 

@@ -122,40 +122,48 @@ export default function PlantLogsPage() {
 
       {/* Log List */}
       <div className="space-y-3">
-        {plantLogs.map((log) => (
-          <div key={log.id} className="bg-white rounded-2xl border border-slate-200/90 p-4 space-y-2 shadow-xs">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <div className="flex items-center space-x-2">
-                <Sprout className="w-4 h-4 text-emerald-600" />
-                <h3 className="font-bold text-slate-900 text-sm">{log.crop_type}</h3>
+        {plantLogs.length > 0 ? (
+          plantLogs.map((log) => (
+            <div key={log.id} className="bg-white rounded-2xl border border-slate-200/90 p-4 space-y-2 shadow-xs">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <div className="flex items-center space-x-2">
+                  <Sprout className="w-4 h-4 text-emerald-600" />
+                  <h3 className="font-bold text-slate-900 text-sm">{log.crop_type}</h3>
+                </div>
+                <button
+                  onClick={() => deletePlantLog(log.id)}
+                  className="text-slate-400 hover:text-rose-500 p-1"
+                  aria-label="Delete log"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
-              <button
-                onClick={() => deletePlantLog(log.id)}
-                className="text-slate-400 hover:text-rose-500 p-1"
-                aria-label="Delete log"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
 
-            <div className="grid grid-cols-2 gap-2 text-xs text-slate-600">
-              <div>
-                <span className="text-slate-400 block text-[10px]">PLANTED ON</span>
-                <span className="font-bold text-slate-800">{log.planting_date}</span>
+              <div className="grid grid-cols-2 gap-2 text-xs text-slate-600">
+                <div>
+                  <span className="text-slate-400 block text-[10px]">PLANTED ON</span>
+                  <span className="font-bold text-slate-800">{log.planting_date}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px]">EXPECTED HARVEST</span>
+                  <span className="font-bold text-brand-forest">{log.expected_harvest_date || 'TBD'}</span>
+                </div>
               </div>
-              <div>
-                <span className="text-slate-400 block text-[10px]">EXPECTED HARVEST</span>
-                <span className="font-bold text-brand-forest">{log.expected_harvest_date || 'TBD'}</span>
-              </div>
-            </div>
 
-            {log.notes && (
-              <p className="text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-100 mt-2">
-                {log.notes}
-              </p>
-            )}
+              {log.notes && (
+                <p className="text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-100 mt-2">
+                  {log.notes}
+                </p>
+              )}
+            </div>
+          ))
+        ) : (
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-12 text-center max-w-sm mx-auto my-6 space-y-3">
+            <Sprout className="w-10 h-10 text-slate-300 mx-auto" />
+            <h3 className="font-bold text-slate-900 text-sm">No Plant Logs Yet</h3>
+            <p className="text-xs text-slate-500">Record your planting cycles, irrigation notes, and expected harvests above.</p>
           </div>
-        ))}
+        )}
       </div>
 
     </div>

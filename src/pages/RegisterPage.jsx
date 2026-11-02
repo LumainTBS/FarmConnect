@@ -143,21 +143,13 @@ export default function RegisterPage() {
       });
 
       if (error) {
-        console.warn('Google Signup Notice:', error.message);
-        registerUser({
-          id: 'usr-google-demo',
-          role,
-          full_name: 'Nokuthula Simelane',
-          email: 'nokuthula@gmail.com',
-          phone_number: '+268 7688 1122',
-          profile_picture_url: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&q=80',
-          is_verified: true
-        });
+        console.error('Google Signup Error:', error.message);
+        setErrorMsg('Google sign in encountered an issue: ' + error.message);
         setIsLoading(false);
-        navigate(role === 'farmer' ? '/farmer/dashboard' : '/marketplace');
       }
     } catch (err) {
       console.error('Google signup exception:', err);
+      setErrorMsg('Google sign in failed. Please try again.');
       setIsLoading(false);
     }
   };

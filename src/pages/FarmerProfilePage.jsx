@@ -51,7 +51,19 @@ export default function FarmerProfilePage() {
     response_rate: 100,
     phone: '',
     email: sampleListing.farmer_email || ''
-  } : farmers[0]));
+  } : null));
+
+  if (!farmer) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-16 text-center space-y-4">
+        <h2 className="text-xl font-bold text-slate-900">Farmer Profile Not Found</h2>
+        <p className="text-xs text-slate-500">The requested farmer profile does not exist or has not registered yet.</p>
+        <button onClick={() => navigate('/farmers')} className="px-5 py-2.5 bg-brand-forest text-white font-bold rounded-xl text-xs hover:bg-brand-dark transition-colors">
+          Browse Registered Farmers
+        </button>
+      </div>
+    );
+  }
 
   // Strictly filter listings belonging to this specific farmer
   const farmerListings = listings.filter(l => 

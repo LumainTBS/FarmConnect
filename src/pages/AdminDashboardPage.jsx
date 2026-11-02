@@ -719,7 +719,7 @@ export default function AdminDashboardPage() {
                       </div>
                     </td>
                     <td className="py-3 px-4 text-slate-600">
-                      <div>{farmer.inkhundla || 'Matsanjeni'}</div>
+                      <div>{farmer.inkhundla || 'Not specified'}</div>
                       <div className="text-[10px] text-slate-400 capitalize">{farmer.settlement_type || 'rural'}</div>
                     </td>
                     <td className="py-3 px-4">

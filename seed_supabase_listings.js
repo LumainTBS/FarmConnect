@@ -90,18 +90,11 @@ const INITIAL_LISTINGS = [
   }
 ];
 
-async function seedListings() {
-  console.log('Seeding INITIAL_LISTINGS into Supabase...');
+/**
+ * FarmConnect Eswatini - Database Seed Script (Disabled)
+ * Static concept seed listings removed so that the platform uses 100% real authenticated
+ * farmer listings and users in Supabase.
+ */
 
-  // Attempt insert
-  const { data, error } = await supabase.from('listings').insert(INITIAL_LISTINGS).select();
+console.log('Seed script disabled: Platform is operating with live authenticated data only.');
 
-  if (error) {
-    console.error('Supabase Error:', error.message);
-  } else {
-    console.log(`SUCCESS! Inserted ${data ? data.length : 0} listings into Supabase database!`);
-    console.log('Inserted listings data:', data);
-  }
-}
-
-seedListings();

@@ -32,7 +32,7 @@ export default function OrderDetailPage() {
 
   const handleContactFarmer = () => {
     sendMessage(
-      order.farmer_id || 'frm-1',
+      order.farmer_id,
       order.farmer_name,
       `Hello ${order.farmer_name}, regarding order #${order.id} for ${order.product_name}...`
     );
