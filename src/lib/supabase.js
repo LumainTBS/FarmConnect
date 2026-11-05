@@ -227,3 +227,104 @@ export const INITIAL_SEASONAL_TIPS = [
     tip_text: 'Peak harvest season across lowveld farms creates supply surge. Consider grading and batch selling to supermarkets.'
   }
 ];
+
+/**
+ * Compresses an image file or Data URL in the browser to reduce size (under 100KB)
+ * for fast loading and safe database/network transmission.
+ */
+export const compressImage = (fileOrDataUrl, maxWidth = 800, quality = 0.75) => {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      return resolve(typeof fileOrDataUrl === 'string' ? fileOrDataUrl : null);
+    }
+
+    const processImg = (src) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressed = canvas.toDataURL('image/jpeg', quality);
+          resolve(compressed);
+        } catch (e) {
+          resolve(src);
+        }
+      };
+      img.onerror = () => resolve(src);
+      img.src = src;
+    };
+
+    if (typeof fileOrDataUrl === 'string') {
+      if (fileOrDataUrl.startsWith('http://') || fileOrDataUrl.startsWith('https://')) {
+        return resolve(fileOrDataUrl);
+      }
+      processImg(fileOrDataUrl);
+    } else if (fileOrDataUrl instanceof File || fileOrDataUrl instanceof Blob) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        if (e.target?.result) {
+          processImg(e.target.result);
+        } else {
+          resolve(null);
+        }
+      };
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(fileOrDataUrl);
+    } else {
+      resolve(null);
+    }
+  });
+};
+
+/**
+ * Uploads an image file to Supabase Storage bucket.
+ * Returns the public URL on success, or null on failure.
+ */
+export const uploadListingImageToStorage = async (file, farmerId) => {
+  if (!file) return null;
+  try {
+    const ext = file.name ? file.name.split('.').pop().toLowerCase() : 'jpg';
+    const cleanExt = ['jpg', 'jpeg', 'png', 'webp'].includes(ext) ? ext : 'jpg';
+    const uid = farmerId && isValidUUID(farmerId) ? farmerId : 'producer';
+    const filePath = `listings/${uid}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${cleanExt}`;
+
+    // 1. Try 'produce-images' bucket
+    let bucketName = 'produce-images';
+    let { data, error } = await supabase.storage.from(bucketName).upload(filePath, file, {
+      cacheControl: '3600',
+      upsert: true
+    });
+
+    // 2. If 'produce-images' bucket is missing or fails, try 'id-documents'
+    if (error && (error.statusCode === '404' || error.message?.includes('Bucket not found'))) {
+      bucketName = 'id-documents';
+      const fallbackUpload = await supabase.storage.from(bucketName).upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: true
+      });
+      data = fallbackUpload.data;
+      error = fallbackUpload.error;
+    }
+
+    if (!error && data) {
+      const { data: urlData } = supabase.storage.from(bucketName).getPublicUrl(filePath);
+      if (urlData?.publicUrl) {
+        return urlData.publicUrl;
+      }
+    }
+  } catch (err) {
+    console.warn('Storage upload notice:', err);
+  }
+  return null;
+};
+

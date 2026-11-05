@@ -1,18 +1,41 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { 
   ShoppingBag, MessageSquare, MapPin, CheckCircle, Heart, ChevronLeft, 
-  ChevronRight, ArrowLeft, BellRing, Edit3 
+  ChevronRight, ArrowLeft, BellRing, Edit3, RefreshCw 
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { isFarmerListing } from '../lib/supabase';
+import { isFarmerListing, supabase } from '../lib/supabase';
 
 export default function ListingDetailPage() {
   const { id } = useParams();
   const { listings, farmers, cart, addToCart, sendMessage, user, notifyFarmerToRestock, restockAttempts } = useApp();
   const navigate = useNavigate();
 
-  const listing = listings.find(item => item.id === id);
+  const [directListing, setDirectListing] = useState(null);
+  const [isLoadingDirect, setIsLoadingDirect] = useState(false);
+
+  const foundListing = listings.find(item => item.id === id);
+  const listing = foundListing || directListing;
+
+  useEffect(() => {
+    if (!foundListing && id) {
+      setIsLoadingDirect(true);
+      supabase
+        .from('listings')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle()
+        .then(({ data, error }) => {
+          if (!error && data) {
+            setDirectListing(data);
+          }
+        })
+        .finally(() => {
+          setIsLoadingDirect(false);
+        });
+    }
+  }, [foundListing, id]);
 
   // Dynamically resolve seller from farmers or listing attributes
   const matchingFarmer = farmers.find(f => f.id === listing?.farmer_id || (listing?.farmer_name && f.name.toLowerCase() === listing.farmer_name.toLowerCase()));
@@ -81,6 +104,15 @@ export default function ListingDetailPage() {
       navigate('/messages');
     }
   };
+
+  if (isLoadingDirect) {
+    return (
+      <div className="max-w-md mx-auto px-4 py-24 text-center space-y-4">
+        <RefreshCw className="w-8 h-8 animate-spin text-brand-forest mx-auto" />
+        <h2 className="text-sm font-bold text-slate-800">Loading Produce Listing...</h2>
+      </div>
+    );
+  }
 
   if (!listing) {
     return (

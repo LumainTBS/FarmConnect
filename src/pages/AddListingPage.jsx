@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Upload, X, ArrowLeft, Eye, Sparkles, Lock, AlertTriangle, ShieldCheck, ShieldAlert, Clock } from 'lucide-react';
+import { Upload, X, ArrowLeft, Eye, Sparkles, Lock, AlertTriangle, ShieldCheck, ShieldAlert, Clock, RefreshCw } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { PRODUCT_CATEGORIES, SUBSCRIPTION_TIERS, isFarmerListing } from '../lib/supabase';
+import { PRODUCT_CATEGORIES, SUBSCRIPTION_TIERS, isFarmerListing, compressImage, uploadListingImageToStorage } from '../lib/supabase';
 
 export default function AddListingPage() {
   const { addListing, listings, user, showToast } = useApp();
@@ -15,6 +15,8 @@ export default function AddListingPage() {
   const [unit, setUnit] = useState('kg');
   const [price, setPrice] = useState('');
   const [harvestDate, setHarvestDate] = useState(new Date().toISOString().split('T')[0]);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [publishError, setPublishError] = useState('');
 
   // Quota & Tier Checks
   const farmerListings = listings.filter(l => isFarmerListing(l, user));
@@ -22,15 +24,16 @@ export default function AddListingPage() {
   const currentTier = SUBSCRIPTION_TIERS[userTierKey] || SUBSCRIPTION_TIERS.free;
   const isLimitReached = farmerListings.length >= currentTier.maxListings;
 
-  // Image previews (up to 3)
+  // Image previews (up to 3) & tracking of raw uploaded files for storage upload
   const [imageUrls, setImageUrls] = useState([
     'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80'
   ]);
+  const [imageFiles, setImageFiles] = useState({});
 
   // Step state: 'form' | 'preview'
   const [step, setStep] = useState('form');
 
-  const handleFileUpload = (e) => {
+  const handleFileUpload = async (e) => {
     const files = Array.from(e.target.files);
     if (!files || files.length === 0) return;
 
@@ -38,15 +41,23 @@ export default function AddListingPage() {
       showToast('Maximum 3 photos allowed per listing', 'info');
     }
 
-    files.slice(0, 3 - imageUrls.length).forEach(file => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target.result) {
-          setImageUrls(prev => [...prev, event.target.result]);
+    const availableSlots = 3 - imageUrls.length;
+    const filesToProcess = files.slice(0, availableSlots);
+
+    for (const file of filesToProcess) {
+      try {
+        const compressedPreview = await compressImage(file, 800, 0.75);
+        if (compressedPreview) {
+          setImageUrls(prev => {
+            const nextIdx = prev.length;
+            setImageFiles(currFiles => ({ ...currFiles, [nextIdx]: file }));
+            return [...prev, compressedPreview];
+          });
         }
-      };
-      reader.readAsDataURL(file);
-    });
+      } catch (err) {
+        console.warn('Error reading file preview:', err);
+      }
+    }
   };
 
   const handleAddSampleImage = (url) => {
@@ -56,6 +67,17 @@ export default function AddListingPage() {
 
   const handleRemoveImage = (index) => {
     setImageUrls(prev => prev.filter((_, i) => i !== index));
+    setImageFiles(prev => {
+      const next = {};
+      let nextI = 0;
+      imageUrls.forEach((_, i) => {
+        if (i !== index) {
+          if (prev[i]) next[nextI] = prev[i];
+          nextI++;
+        }
+      });
+      return next;
+    });
   };
 
   // Verification & Location checks
@@ -89,6 +111,20 @@ export default function AddListingPage() {
   };
 
   const handlePublish = async () => {
+    if (!productType || !productType.trim()) {
+      showToast('Please enter a product name.', 'error');
+      return;
+    }
+    const parsedPrice = parseFloat(price);
+    if (isNaN(parsedPrice) || parsedPrice <= 0) {
+      showToast('Please enter a valid price greater than 0.', 'error');
+      return;
+    }
+    const parsedQty = parseFloat(quantity);
+    if (isNaN(parsedQty) || parsedQty <= 0) {
+      showToast('Please enter a valid quantity greater than 0.', 'error');
+      return;
+    }
     if (!isVerified) {
       showToast('Producer verification required to publish listings.', 'error');
       return;
@@ -102,20 +138,53 @@ export default function AddListingPage() {
       return;
     }
 
-    await addListing({
-      product_type: productType,
-      category,
-      description,
-      quantity: parseFloat(quantity),
-      unit,
-      price: parseFloat(price),
-      harvest_date: harvestDate,
-      images: imageUrls.length > 0 ? imageUrls : ['https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80'],
-      inkhundla: user?.inkhundla || 'Ludzeludze',
-      location: user?.location || 'Manzini Region, Eswatini'
-    });
+    setIsPublishing(true);
+    setPublishError('');
 
-    navigate('/farmer/dashboard');
+    try {
+      // 1. Upload any raw files to Supabase Storage with graceful fallback
+      const finalImageUrls = await Promise.all(
+        imageUrls.map(async (url, idx) => {
+          const file = imageFiles[idx];
+          if (file) {
+            const storageUrl = await uploadListingImageToStorage(file, user?.id);
+            if (storageUrl) return storageUrl;
+            // Fallback: use compressed image data URL
+            const compressed = await compressImage(file, 800, 0.7);
+            return compressed || url;
+          }
+          return url;
+        })
+      );
+
+      const listingData = {
+        product_type: productType.trim(),
+        category,
+        description: description.trim(),
+        quantity: parsedQty,
+        unit,
+        price: parsedPrice,
+        harvest_date: harvestDate,
+        images: finalImageUrls.length > 0 ? finalImageUrls : ['https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80'],
+        inkhundla: user?.inkhundla || 'Ludzeludze',
+        location: user?.location || (user?.inkhundla ? `${user.inkhundla}, Manzini Region` : 'Manzini Region, Eswatini')
+      };
+
+      const result = await addListing(listingData);
+
+      if (result && result.success) {
+        navigate('/farmer/listings');
+      } else {
+        const errorMsg = result?.error || 'Database submission failed. Please check your connection and try again.';
+        setPublishError(errorMsg);
+      }
+    } catch (err) {
+      console.error('Publication exception:', err);
+      const errText = err.message || 'An unexpected error occurred while publishing.';
+      setPublishError(errText);
+    } finally {
+      setIsPublishing(false);
+    }
   };
 
   const sampleImages = [
@@ -474,23 +543,38 @@ export default function AddListingPage() {
             </p>
           </div>
 
+          {publishError && (
+            <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center space-x-2.5">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
+              <span>{publishError}</span>
+            </div>
+          )}
+
           <div className="flex space-x-3 pt-2">
             <button
               onClick={() => setStep('form')}
-              className="flex-1 py-3 rounded-xl border border-slate-300 text-slate-700 text-xs font-bold hover:bg-slate-50 cursor-pointer"
+              disabled={isPublishing}
+              className="flex-1 py-3 rounded-xl border border-slate-300 text-slate-700 text-xs font-bold hover:bg-slate-50 cursor-pointer disabled:opacity-50"
             >
               Edit Details
             </button>
             <button
               onClick={handlePublish}
-              disabled={!isVerified}
-              className={`flex-1 py-3 rounded-xl text-xs font-bold shadow-sm transition-colors ${
-                !isVerified
+              disabled={!isVerified || isPublishing}
+              className={`flex-1 py-3 rounded-xl text-xs font-bold shadow-sm transition-colors flex items-center justify-center space-x-2 ${
+                !isVerified || isPublishing
                   ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
                   : 'bg-brand-forest text-white hover:bg-brand-dark cursor-pointer'
               }`}
             >
-              {!isVerified ? 'Verification Required' : 'Publish Listing'}
+              {isPublishing ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                  <span>Publishing Listing to Supabase...</span>
+                </>
+              ) : (
+                <span>{!isVerified ? 'Verification Required' : 'Publish Listing'}</span>
+              )}
             </button>
           </div>
         </div>

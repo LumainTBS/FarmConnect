@@ -308,8 +308,11 @@ export const AppProvider = ({ children }) => {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (!error && data) {
+      if (error) {
+        console.warn('Listing fetch notice:', error.message);
+      } else if (data) {
         setListings(data);
+        localStorage.setItem('farmconnect_listings', JSON.stringify(data));
       }
     } catch (e) {
       console.warn('Listing fetch notice:', e);
@@ -318,11 +321,22 @@ export const AppProvider = ({ children }) => {
 
   const deployAllListingsToSupabase = async () => {
     try {
+      // Resolve active farmer UUID
+      let authUid = (user?.id && isValidUUID(user.id)) ? user.id : null;
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user?.id && isValidUUID(session.user.id)) {
+          authUid = session.user.id;
+        }
+      } catch (sessErr) {
+        console.warn('Session check warning:', sessErr);
+      }
+
       const formattedListings = listings.map(l => {
         const payload = {
           ...l,
           id: isValidUUID(l.id) ? l.id : generateUUID(),
-          farmer_id: isValidUUID(l.farmer_id) ? l.farmer_id : null
+          farmer_id: isValidUUID(l.farmer_id) ? l.farmer_id : authUid
         };
         return payload;
       });
@@ -334,8 +348,9 @@ export const AppProvider = ({ children }) => {
       } else {
         if (data && data.length > 0) {
           setListings(data);
+          localStorage.setItem('farmconnect_listings', JSON.stringify(data));
         }
-        showToast('All produce listings successfully deployed to Supabase!');
+        showToast('All your produce listings are now live and available on the marketplace!', 'success');
         return { success: true, count: data ? data.length : 0 };
       }
     } catch (e) {
@@ -376,13 +391,14 @@ export const AppProvider = ({ children }) => {
         }));
 
         setFarmers(formatted);
+        localStorage.setItem('farmconnect_farmers', JSON.stringify(formatted));
       }
     } catch (e) {
       console.warn('Farmer fetch notice:', e);
     }
   };
 
-  // Supabase Auth listener & Session Lifecycle
+  // Supabase Auth listener & Session Lifecycle & Initial Data Sync
   useEffect(() => {
     // Helper to clean OAuth tokens from address bar
     const cleanUrlHash = () => {
@@ -390,6 +406,10 @@ export const AppProvider = ({ children }) => {
         window.history.replaceState(null, '', window.location.pathname || '/');
       }
     };
+
+    // Initial database synchronization (Marketplace listings & verified farmers)
+    fetchSupabaseListings();
+    fetchSupabaseFarmers();
 
     // 1. Initial session check (Strict: only activate user if verified Supabase session exists)
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -425,8 +445,32 @@ export const AppProvider = ({ children }) => {
       }
     });
 
+    // 3. Realtime sync on marketplace listings across all active buyers and farmers
+    const listingsChannel = supabase
+      .channel('public:listings-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'listings' },
+        (payload) => {
+          if (payload.eventType === 'INSERT' && payload.new) {
+            setListings(prev => {
+              if (prev.some(l => l.id === payload.new.id)) {
+                return prev.map(l => l.id === payload.new.id ? payload.new : l);
+              }
+              return [payload.new, ...prev];
+            });
+          } else if (payload.eventType === 'UPDATE' && payload.new) {
+            setListings(prev => prev.map(l => l.id === payload.new.id ? payload.new : l));
+          } else if (payload.eventType === 'DELETE' && payload.old) {
+            setListings(prev => prev.filter(l => l.id !== payload.old.id));
+          }
+        }
+      )
+      .subscribe();
+
     return () => {
       subscription?.unsubscribe();
+      supabase.removeChannel(listingsChannel);
     };
   }, []);
 
@@ -739,49 +783,74 @@ export const AppProvider = ({ children }) => {
   const addListing = async (newListingData) => {
     if (!user) {
       showToast('Please sign in to list your produce', 'error');
-      return null;
+      return { success: false, error: 'User is not signed in.' };
+    }
+
+    // Resolve authenticated producer UID directly from active Supabase session
+    let authUid = (user.id && isValidUUID(user.id)) ? user.id : null;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.id && isValidUUID(session.user.id)) {
+        authUid = session.user.id;
+      }
+    } catch (sessionErr) {
+      console.warn('Session check warning:', sessionErr);
+    }
+
+    if (!authUid) {
+      showToast('Active authenticated producer session required to publish.', 'error');
+      return { success: false, error: 'Producer session is not authenticated.' };
     }
 
     const newId = generateUUID();
-    const validFarmerId = (user.id && isValidUUID(user.id)) 
-      ? user.id 
-      : ((user.farmer_id && isValidUUID(user.farmer_id)) ? user.farmer_id : null);
-
     const listingPayload = {
       id: newId,
+      farmer_id: authUid,
       farmer_name: user.full_name || 'My Farm',
       farmer_email: user.email || '',
       farmer_avatar: user.profile_picture_url || 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=150&q=80',
+      product_type: newListingData.product_type?.trim() || 'Produce Item',
+      category: newListingData.category || 'vegetables',
+      description: newListingData.description?.trim() || '',
+      quantity: Number(newListingData.quantity) || 0,
+      unit: newListingData.unit || 'kg',
+      price: Number(newListingData.price) || 0,
+      harvest_date: newListingData.harvest_date || new Date().toISOString().split('T')[0],
       status: 'available',
-      is_verified: user.is_verified || false,
-      created_at: new Date().toISOString(),
       currency: 'E',
+      is_verified: user.is_verified || false,
+      settlement_type: user.settlement_type || 'rural',
+      inkhundla: newListingData.inkhundla || user.inkhundla || 'Ludzeludze',
+      location: newListingData.location || user.location || 'Manzini Region, Eswatini',
+      images: Array.isArray(newListingData.images) && newListingData.images.length > 0
+        ? newListingData.images
+        : ['https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80'],
       rating: 5.0,
       reviews_count: 0,
-      ...newListingData
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     };
 
-    if (validFarmerId) {
-      listingPayload.farmer_id = validFarmerId;
-    }
-
-    // Optimistically update listings locally
-    setListings(prev => [listingPayload, ...prev]);
-
-    // Persist in Supabase
     try {
-      const { data, error } = await supabase.from('listings').insert(listingPayload).select().maybeSingle();
+      const { data, error } = await supabase.from('listings').insert(listingPayload).select().single();
       if (error) {
-        console.warn('Supabase listing insert notice:', error.message);
-      } else if (data) {
-        setListings(prev => prev.map(l => l.id === listingPayload.id ? data : l));
+        console.error('Supabase listing insert failed:', error);
+        showToast(`Failed to publish listing: ${error.message || 'Database error'}`, 'error');
+        return { success: false, error: error.message };
       }
-    } catch (err) {
-      console.warn('Listing insert notice:', err);
-    }
 
-    showToast('Product listing published successfully!');
-    return listingPayload;
+      const publishedListing = data || listingPayload;
+      // Prepend confirmed listing to local listings
+      setListings(prev => [publishedListing, ...prev.filter(l => l.id !== publishedListing.id)]);
+      localStorage.setItem('farmconnect_listings', JSON.stringify([publishedListing, ...listings.filter(l => l.id !== publishedListing.id)]));
+      
+      showToast('Product listing published successfully!', 'success');
+      return { success: true, data: publishedListing };
+    } catch (err) {
+      console.error('Listing insert exception:', err);
+      showToast(`Publication failed: ${err.message || 'Network error'}`, 'error');
+      return { success: false, error: err.message };
+    }
   };
 
   const deleteListing = async (listingId) => {
@@ -1404,6 +1473,8 @@ export const AppProvider = ({ children }) => {
       deletePlantLog,
       addListing,
       deployAllListingsToSupabase,
+      makeListingsAvailable: deployAllListingsToSupabase,
+      fetchSupabaseListings,
       deleteListing,
       updateListingStatus,
       updateListingDetails,

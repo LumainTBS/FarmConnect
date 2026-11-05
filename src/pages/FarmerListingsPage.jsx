@@ -17,12 +17,12 @@ export default function FarmerListingsPage() {
 
   const farmerListings = listings.filter(l => isFarmerListing(l, user));
 
-  const handleDeployToSupabase = async () => {
+  const handleMakeListingsAvailable = async () => {
     setIsDeploying(true);
     const result = await deployAllListingsToSupabase();
     setIsDeploying(false);
     if (!result.success && result.error) {
-      showToast(`Supabase Deploy Note: ${result.error}`, 'info');
+      showToast('Could not make listings available. Please check your connection and try again.', 'error');
     }
   };
 
@@ -92,17 +92,17 @@ export default function FarmerListingsPage() {
 
         <div className="flex items-center space-x-2">
           <button
-            onClick={handleDeployToSupabase}
+            onClick={handleMakeListingsAvailable}
             disabled={isDeploying}
             className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs rounded-xl transition-colors flex items-center space-x-1.5 shadow-xs disabled:opacity-50"
-            title="Upload and sync produce listings directly to Supabase cloud database"
+            title="Sync and make all your produce listings available to buyers on the marketplace"
           >
             {isDeploying ? (
               <RefreshCw className="w-4 h-4 animate-spin text-emerald-700" />
             ) : (
               <UploadCloud className="w-4 h-4 text-emerald-700" />
             )}
-            <span>{isDeploying ? 'Deploying...' : 'Deploy to Supabase'}</span>
+            <span>{isDeploying ? 'Making Listings Available...' : 'Make My Listings Available'}</span>
           </button>
 
           <Link
