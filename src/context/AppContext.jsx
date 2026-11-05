@@ -66,12 +66,33 @@ export const AppProvider = ({ children }) => {
         .maybeSingle();
 
       const meta = authUser.user_metadata || {};
+      const appMeta = authUser.app_metadata || {};
       const fallbackName = meta.full_name || meta.name || authUser.email?.split('@')[0] || 'User';
       const fallbackAvatar = meta.avatar_url || meta.picture || 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=150&q=80';
-      
-      // Determine if role was explicitly chosen by the user
-      const isRoleExplicitlyChosen = localStorage.getItem(`farmconnect_role_selected_${authUser.id}`) === 'true' || Boolean(meta.role_selected);
-      const fallbackRole = meta.role || profile?.role || 'buyer';
+
+      // Distinguish authentication method (Google/Gmail vs credentials)
+      const isGoogleUser = appMeta.provider === 'google' ||
+        appMeta.providers?.includes('google') ||
+        authUser.identities?.some(id => id.provider === 'google') ||
+        Boolean(meta.iss && meta.iss.includes('accounts.google.com'));
+
+      // Check if user has an existing assigned role in DB or metadata
+      const hasStoredLocalRole = localStorage.getItem(`farmconnect_role_selected_${authUser.id}`) === 'true';
+      const dbRole = profile?.role;
+      const isDbRoleAssigned = Boolean(dbRole && dbRole !== 'pending' && (dbRole === 'farmer' || dbRole === 'buyer' || dbRole === 'admin'));
+      const isMetaRoleAssigned = Boolean(meta.role && meta.role !== 'pending');
+      const isRoleExplicitlyMarked = Boolean(profile?.role_selected === true || meta.role_selected === true || hasStoredLocalRole);
+
+      // A user has a valid assigned role if they already selected or registered with a role
+      const hasAssignedRole = isDbRoleAssigned || isMetaRoleAssigned;
+
+      // Scenario A: New user registering with Gmail
+      // ONLY trigger the role selection card if this is a Google registration and the user does NOT yet have an assigned role
+      const isNewGoogleRegistration = isGoogleUser && !hasAssignedRole;
+
+      const activeRole = isDbRoleAssigned 
+        ? dbRole 
+        : (isMetaRoleAssigned ? meta.role : (isNewGoogleRegistration ? 'pending' : 'buyer'));
 
       let synced = null;
 
@@ -97,8 +118,8 @@ export const AppProvider = ({ children }) => {
           farmer_id: authUser.id,
           email: authUser.email,
           full_name: updates.full_name || profile.full_name || fallbackName,
-          role: profile.role || fallbackRole,
-          role_selected: isRoleExplicitlyChosen,
+          role: activeRole,
+          role_selected: hasAssignedRole || isRoleExplicitlyMarked,
           phone_number: profile.phone_number || '',
           profile_picture_url: updates.profile_picture_url || profile.profile_picture_url || fallbackAvatar,
           id_document_url: profile.id_document_url || null,
@@ -119,8 +140,8 @@ export const AppProvider = ({ children }) => {
           farmer_id: authUser.id,
           email: authUser.email,
           full_name: fallbackName,
-          role: fallbackRole,
-          role_selected: isRoleExplicitlyChosen,
+          role: activeRole,
+          role_selected: hasAssignedRole || isRoleExplicitlyMarked,
           phone_number: '',
           profile_picture_url: fallbackAvatar,
           id_document_url: null,
@@ -133,26 +154,34 @@ export const AppProvider = ({ children }) => {
           location: meta.inkhundla ? `${meta.inkhundla}, Manzini Region` : 'Manzini Region, Eswatini'
         };
 
-        await supabase.from('users').upsert({
-          id: synced.id,
-          email: synced.email,
-          full_name: synced.full_name,
-          role: synced.role,
-          profile_picture_url: synced.profile_picture_url,
-          is_verified: synced.is_verified,
-          verification_status: synced.verification_status,
-          settlement_type: synced.settlement_type,
-          inkhundla: synced.inkhundla,
-          subscription_tier: synced.subscription_tier
-        });
+        try {
+          await supabase.from('users').upsert({
+            id: synced.id,
+            email: synced.email,
+            full_name: synced.full_name,
+            role: synced.role,
+            profile_picture_url: synced.profile_picture_url,
+            is_verified: synced.is_verified,
+            verification_status: synced.verification_status,
+            settlement_type: synced.settlement_type,
+            inkhundla: synced.inkhundla,
+            subscription_tier: synced.subscription_tier
+          });
+        } catch (upsertErr) {
+          console.warn('Initial user upsert notice:', upsertErr);
+        }
       }
 
       setUser(synced);
       localStorage.setItem('farmconnect_user', JSON.stringify(synced));
 
-      // Trigger Role Selection Modal if user has not explicitly chosen their role
-      if (!isRoleExplicitlyChosen) {
+      // ONLY display the Buyer/Farmer selection card when a user registers for the first time
+      // using their Gmail account without an assigned role (Scenario A).
+      // For existing Gmail logins (Scenario B) and other auth methods (Scenario C), do NOT display.
+      if (isNewGoogleRegistration) {
         setIsRoleModalOpen(true);
+      } else {
+        setIsRoleModalOpen(false);
       }
 
       return synced;
@@ -784,27 +813,122 @@ export const AppProvider = ({ children }) => {
   };
 
   const updateListingDetails = async (listingId, updatedFields) => {
-    // If quantity is updated to > 0, reset restock attempts and clear alert
-    if (updatedFields.quantity && Number(updatedFields.quantity) > 0) {
-      updatedFields.status = 'available';
-      setRestockAttempts(prev => {
-        const next = { ...prev };
-        delete next[listingId];
-        return next;
-      });
-      setRestockAlerts(prev => prev.filter(a => a.listing_id !== listingId));
+    // 1. Locate target listing
+    const targetListing = listings.find(l => l.id === listingId);
+    if (!targetListing) {
+      showToast('Listing not found.', 'error');
+      return { success: false, error: 'Listing not found.' };
     }
 
-    setListings(prev => prev.map(item =>
-      item.id === listingId ? { ...item, ...updatedFields } : item
-    ));
+    // 2. Enforce ownership permissions
+    if (!user) {
+      showToast('Please sign in to modify listings.', 'error');
+      return { success: false, error: 'Unauthorized' };
+    }
 
+    const isOwner = isFarmerListing(targetListing, user) || user.role === 'admin';
+    if (!isOwner) {
+      showToast('Permission denied: You can only edit your own listings.', 'error');
+      return { success: false, error: 'Permission denied: You do not own this listing.' };
+    }
+
+    // 3. Validate product name if provided
+    const payload = { ...updatedFields };
+    if (payload.product_type !== undefined) {
+      const trimmedName = String(payload.product_type).trim();
+      if (!trimmedName) {
+        showToast('Product name cannot be empty.', 'error');
+        return { success: false, error: 'Product name cannot be empty.' };
+      }
+      payload.product_type = trimmedName;
+      payload.title = trimmedName;
+    }
+
+    // 4. Validate price/quantity if provided
+    if (payload.price !== undefined) {
+      const parsedPrice = parseFloat(payload.price);
+      if (isNaN(parsedPrice) || parsedPrice <= 0) {
+        showToast('Please enter a valid price.', 'error');
+        return { success: false, error: 'Invalid price.' };
+      }
+      payload.price = parsedPrice;
+    }
+
+    if (payload.quantity !== undefined) {
+      const parsedQty = parseFloat(payload.quantity);
+      if (isNaN(parsedQty) || parsedQty < 0) {
+        showToast('Please enter a valid quantity.', 'error');
+        return { success: false, error: 'Invalid quantity.' };
+      }
+      payload.quantity = parsedQty;
+      if (parsedQty > 0) {
+        payload.status = 'available';
+        setRestockAttempts(prev => {
+          const next = { ...prev };
+          delete next[listingId];
+          return next;
+        });
+        setRestockAlerts(prev => prev.filter(a => a.listing_id !== listingId));
+      }
+    }
+
+    // 5. Update in Supabase database
     try {
-      await supabase.from('listings').update(updatedFields).eq('id', listingId);
+      const dbPayload = {
+        updated_at: new Date().toISOString()
+      };
+      if (payload.product_type !== undefined) dbPayload.product_type = payload.product_type;
+      if (payload.title !== undefined) dbPayload.title = payload.title;
+      if (payload.price !== undefined) dbPayload.price = payload.price;
+      if (payload.quantity !== undefined) dbPayload.quantity = payload.quantity;
+      if (payload.status !== undefined) dbPayload.status = payload.status;
+      if (payload.description !== undefined) dbPayload.description = payload.description;
+
+      const { error } = await supabase
+        .from('listings')
+        .update(dbPayload)
+        .eq('id', listingId);
+
+      if (error) {
+        console.warn('Supabase listing update warning:', error.message);
+        // If title column doesn't exist, retry with product_type only
+        if (dbPayload.title) {
+          delete dbPayload.title;
+          const { error: retryError } = await supabase
+            .from('listings')
+            .update(dbPayload)
+            .eq('id', listingId);
+          if (retryError) {
+            console.error('Supabase retry update failed:', retryError);
+            showToast('Failed to save update in database: ' + retryError.message, 'error');
+            return { success: false, error: retryError.message };
+          }
+        } else {
+          showToast('Failed to save update: ' + error.message, 'error');
+          return { success: false, error: error.message };
+        }
+      }
     } catch (e) {
-      console.warn('Details update notice:', e);
+      console.error('Listing update exception:', e);
+      showToast('Error updating listing. Please try again.', 'error');
+      return { success: false, error: e.message };
     }
-    showToast('Listing updated successfully!');
+
+    // 6. Update local state and sync storage so it immediately reflects across the application
+    setListings(prev => {
+      const updated = prev.map(item =>
+        item.id === listingId ? { ...item, ...payload } : item
+      );
+      try {
+        localStorage.setItem('farmconnect_listings', JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Storage sync notice:', e);
+      }
+      return updated;
+    });
+
+    showToast('Listing updated successfully!', 'success');
+    return { success: true };
   };
 
   // Place Order with Real-time Stock Deduction & Commission Tracking

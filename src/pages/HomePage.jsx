@@ -77,6 +77,11 @@ export default function HomePage() {
     .sort((a, b) => (b.goods_sold || 0) - (a.goods_sold || 0) || (b.rating || 0) - (a.rating || 0))
     .slice(0, 4);
 
+  // Requirement 2: Exactly the four most recently published product listings (sorted newest first)
+  const recentListings = [...listings]
+    .sort((a, b) => new Date(b.created_at || b.published_at || 0) - new Date(a.created_at || a.published_at || 0))
+    .slice(0, 4);
+
   return (
     <div className="space-y-8 pb-12">
       
@@ -318,35 +323,41 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* FEATURED LISTINGS */}
+      {/* HOMEPAGE MARKETPLACE: 4 MOST RECENT PRODUCT LISTINGS */}
       <section className="px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">Featured Listings</h2>
-            <p className="text-xs text-slate-500">Fresh produce from local farmers and trusted sellers.</p>
+            <h2 className="text-lg font-bold text-slate-900">Marketplace</h2>
+            <p className="text-xs text-slate-500">The four most recently published fresh produce harvests.</p>
           </div>
           <Link to="/marketplace" className="text-xs font-semibold text-brand-forest hover:underline flex items-center gap-1">
-            <span>View all</span>
+            <span>View all produce</span>
             <ChevronRight className="w-3.5 h-3.5" />
           </Link>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
-          {listings.slice(0, 8).map((listing) => (
-            <ProductCard key={listing.id} listing={listing} />
-          ))}
-        </div>
+        {recentListings.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            {recentListings.map((listing) => (
+              <ProductCard key={listing.id} listing={listing} />
+            ))}
+          </div>
+        ) : (
+          <div className="bg-white/80 backdrop-blur-md rounded-2xl border border-slate-200/90 p-8 text-center text-slate-500 text-xs">
+            No produce listings available at the moment.
+          </div>
+        )}
       </section>
 
-      {/* TOP FEATURED FARMERS (TOP 4 PERFORMERS) */}
+      {/* FARMERS ON THE MOVE (TOP 4 PERFORMERS) */}
       <section className="px-4 sm:px-6 lg:px-8">
         <div className="bg-white/80 backdrop-blur-md rounded-2xl border border-slate-200/80 p-4 sm:p-6 shadow-xs liquid-glass">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-2">
               <MapPin className="w-5 h-5 text-brand-forest" />
               <div>
-                <h2 className="text-base font-bold text-slate-900">Top Performing Farmers</h2>
-                <p className="text-xs text-slate-500">Top 4 certified producers prioritized by verified sales volume and ratings.</p>
+                <h2 className="text-base font-bold text-slate-900">Farmers on the Move</h2>
+                <p className="text-xs text-slate-500">Active certified producers prioritized by verified sales volume and ratings.</p>
               </div>
             </div>
             <Link to="/recommended-farmers" className="text-xs font-semibold text-brand-forest hover:underline flex items-center gap-1">

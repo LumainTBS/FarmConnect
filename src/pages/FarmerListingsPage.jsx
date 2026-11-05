@@ -7,9 +7,13 @@ import { isFarmerListing } from '../lib/supabase';
 export default function FarmerListingsPage() {
   const { listings, user, updateListingStatus, updateListingDetails, deleteListing, deployAllListingsToSupabase, showToast } = useApp();
   const [editingListing, setEditingListing] = useState(null);
+  const [editProductName, setEditProductName] = useState('');
   const [editPrice, setEditPrice] = useState('');
   const [editQuantity, setEditQuantity] = useState('');
+  const [editDescription, setEditDescription] = useState('');
   const [isDeploying, setIsDeploying] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editError, setEditError] = useState('');
 
   const farmerListings = listings.filter(l => isFarmerListing(l, user));
 
@@ -24,18 +28,56 @@ export default function FarmerListingsPage() {
 
   const handleStartEdit = (listing) => {
     setEditingListing(listing);
-    setEditPrice(listing.price);
-    setEditQuantity(listing.quantity);
+    setEditProductName(listing.product_type || listing.title || '');
+    setEditPrice(listing.price !== undefined ? listing.price : '');
+    setEditQuantity(listing.quantity !== undefined ? listing.quantity : '');
+    setEditDescription(listing.description || '');
+    setEditError('');
   };
 
-  const handleSaveEdit = (e) => {
+  const handleSaveEdit = async (e) => {
     e.preventDefault();
-    if (editingListing) {
-      updateListingDetails(editingListing.id, {
-        price: parseFloat(editPrice),
-        quantity: parseFloat(editQuantity)
+    setEditError('');
+
+    const trimmedName = editProductName.trim();
+    if (!trimmedName) {
+      setEditError('Product name cannot be empty. Please enter a valid name (e.g. Green Pepper, Sweet Corn).');
+      return;
+    }
+
+    const parsedPrice = parseFloat(editPrice);
+    if (isNaN(parsedPrice) || parsedPrice <= 0) {
+      setEditError('Please enter a valid price greater than 0.');
+      return;
+    }
+
+    const parsedQuantity = parseFloat(editQuantity);
+    if (isNaN(parsedQuantity) || parsedQuantity < 0) {
+      setEditError('Please enter a valid quantity.');
+      return;
+    }
+
+    if (!editingListing) return;
+
+    setIsSavingEdit(true);
+    try {
+      const result = await updateListingDetails(editingListing.id, {
+        product_type: trimmedName,
+        title: trimmedName,
+        price: parsedPrice,
+        quantity: parsedQuantity,
+        description: editDescription.trim()
       });
-      setEditingListing(null);
+
+      if (result && result.success === false) {
+        setEditError(result.error || 'Failed to update listing.');
+      } else {
+        setEditingListing(null);
+      }
+    } catch (err) {
+      setEditError(err.message || 'Error saving listing changes.');
+    } finally {
+      setIsSavingEdit(false);
     }
   };
 
@@ -157,50 +199,135 @@ export default function FarmerListingsPage() {
         </div>
       )}
 
-      {/* EDIT MODAL */}
+      {/* EDIT LISTING MODAL (ALLOWS EDITING PRODUCT NAME, PRICE, QUANTITY, DESCRIPTION) */}
       {editingListing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs" onClick={() => setEditingListing(null)} />
-          <div className="relative bg-white rounded-2xl p-6 max-w-md w-full space-y-4 z-10">
-            <h3 className="font-bold text-slate-900 text-base">Edit Listing: {editingListing.product_type}</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fade-in">
+          <div className="fixed inset-0" onClick={() => !isSavingEdit && setEditingListing(null)} />
+          <div className="relative bg-white rounded-3xl p-6 sm:p-7 max-w-lg w-full space-y-5 z-10 shadow-2xl border border-slate-200 animate-scale-up">
+            
+            {/* Modal Header */}
+            <div className="flex items-start justify-between border-b border-slate-100 pb-3.5">
+              <div className="flex items-center space-x-3">
+                <img
+                  src={editingListing.images ? editingListing.images[0] : 'https://images.unsplash.com/photo-1576045057995-568f588f82fb?auto=format&fit=crop&w=300&q=80'}
+                  alt={editingListing.product_type}
+                  className="w-12 h-12 rounded-xl object-cover border border-slate-200 bg-slate-100 shrink-0"
+                />
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-base">Edit Product Listing</h3>
+                  <p className="text-[11px] text-slate-500">ID: {editingListing.id?.slice(0, 8)}... &middot; Category: {editingListing.category || 'produce'}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={isSavingEdit}
+                onClick={() => setEditingListing(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Error Notification Banner */}
+            {editError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                <span>{editError}</span>
+              </div>
+            )}
             
             <form onSubmit={handleSaveEdit} className="space-y-4">
+              {/* Product Name Input */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Price per {editingListing.unit} (E)</label>
+                <label className="block text-xs font-bold text-slate-800 mb-1">
+                  Product Name / Title <span className="text-rose-500">*</span>
+                </label>
                 <input
-                  type="number"
-                  step="0.1"
+                  type="text"
                   required
-                  value={editPrice}
-                  onChange={(e) => setEditPrice(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs"
+                  value={editProductName}
+                  onChange={(e) => setEditProductName(e.target.value)}
+                  placeholder="e.g. Green Pepper, Sweet Yellow Corn, Fresh Spinach"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-brand-forest focus:outline-none transition-all"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Correct mistakes (e.g. Yellow Pepper to Green Pepper) without deleting the listing.
+                </p>
+              </div>
+
+              {/* Price & Quantity Grid */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-800 mb-1">
+                    Price per {editingListing.unit || 'unit'} (E) <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0.1"
+                    required
+                    value={editPrice}
+                    onChange={(e) => setEditPrice(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-brand-forest focus:outline-none transition-all"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-800 mb-1">
+                    Available Quantity ({editingListing.unit || 'unit'}) <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    required
+                    value={editQuantity}
+                    onChange={(e) => setEditQuantity(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-brand-forest focus:outline-none transition-all"
+                  />
+                </div>
+              </div>
+
+              {/* Description Input */}
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1">
+                  Product Description (Optional)
+                </label>
+                <textarea
+                  rows="2"
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  placeholder="Describe harvest freshness, packaging grade, or collection landmark..."
+                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:bg-white focus:border-brand-forest focus:outline-none transition-all resize-none"
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Quantity ({editingListing.unit})</label>
-                <input
-                  type="number"
-                  required
-                  value={editQuantity}
-                  onChange={(e) => setEditQuantity(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs"
-                />
-              </div>
-
-              <div className="flex space-x-2 pt-2">
+              {/* Modal Actions */}
+              <div className="flex items-center space-x-2.5 pt-2 border-t border-slate-100">
                 <button
                   type="button"
+                  disabled={isSavingEdit}
                   onClick={() => setEditingListing(null)}
-                  className="flex-1 py-2.5 rounded-xl border border-slate-300 text-slate-700 text-xs font-bold"
+                  className="flex-1 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-brand-forest text-white text-xs font-bold hover:bg-brand-dark"
+                  disabled={isSavingEdit}
+                  className="flex-1 py-2.5 rounded-xl bg-brand-forest hover:bg-brand-dark disabled:opacity-50 text-white text-xs font-bold transition-all shadow-sm flex items-center justify-center space-x-1.5 cursor-pointer"
                 >
-                  Save Changes
+                  {isSavingEdit ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Saving Changes...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      <span>Save Changes</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>

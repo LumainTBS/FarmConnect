@@ -62,6 +62,7 @@ export default function RegisterPage() {
           data: {
             full_name: fullName,
             role,
+            role_selected: true,
             settlement_type: settlementType,
             inkhundla: isRural ? inkhundla : null,
             location: locationText
@@ -82,10 +83,14 @@ export default function RegisterPage() {
         return;
       }
 
+      // Mark role explicitly chosen for this user
+      localStorage.setItem(`farmconnect_role_selected_${realUserId}`, 'true');
+
       // Save complete profile to public.users
       const profileData = {
         id: realUserId,
         role,
+        role_selected: true,
         full_name: fullName || (role === 'farmer' ? 'Sizwe Nsibande' : 'Mandla Dlamini'),
         email: emailOrPhone.trim(),
         phone_number: '',

@@ -295,21 +295,31 @@ export default function FarmerDashboardPage() {
                 </div>
 
                 <div className="flex flex-col items-end space-y-1.5 shrink-0">
-                  <select
-                    value={listing.status}
-                    onChange={(e) => updateListingStatus(listing.id, e.target.value)}
-                    className={'text-[10px] font-bold px-2 py-1 rounded-md border focus:outline-none ' + (
-                      listing.status === 'available'
-                        ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                        : listing.status === 'reserved'
-                        ? 'bg-amber-50 text-amber-800 border-amber-300'
-                        : 'bg-slate-100 text-slate-600 border-slate-300'
-                    )}
-                  >
-                    <option value="available">Available</option>
-                    <option value="reserved">Reserved</option>
-                    <option value="sold">Sold</option>
-                  </select>
+                  <div className="flex items-center space-x-1.5">
+                    <Link
+                      to="/farmer/listings"
+                      className="px-2 py-1 rounded-md text-[10px] font-semibold text-slate-600 hover:text-brand-forest hover:bg-slate-100 border border-slate-200 transition-colors flex items-center space-x-1"
+                      title="Edit listing details or name"
+                    >
+                      <Edit3 className="w-2.5 h-2.5" />
+                      <span>Edit</span>
+                    </Link>
+                    <select
+                      value={listing.status}
+                      onChange={(e) => updateListingStatus(listing.id, e.target.value)}
+                      className={'text-[10px] font-bold px-2 py-1 rounded-md border focus:outline-none ' + (
+                        listing.status === 'available'
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                          : listing.status === 'reserved'
+                          ? 'bg-amber-50 text-amber-800 border-amber-300'
+                          : 'bg-slate-100 text-slate-600 border-slate-300'
+                      )}
+                    >
+                      <option value="available">Available</option>
+                      <option value="reserved">Reserved</option>
+                      <option value="sold">Sold</option>
+                    </select>
+                  </div>
 
                   {/* QUICK RESTOCK BUTTON FOR 0 QUANTITY */}
                   {Number(listing.quantity) <= 0 && (

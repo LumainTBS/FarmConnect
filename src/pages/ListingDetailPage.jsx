@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { 
   ShoppingBag, MessageSquare, MapPin, CheckCircle, Heart, ChevronLeft, 
-  ChevronRight, ArrowLeft, BellRing 
+  ChevronRight, ArrowLeft, BellRing, Edit3 
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { isFarmerListing } from '../lib/supabase';
 
 export default function ListingDetailPage() {
   const { id } = useParams();
@@ -200,6 +201,23 @@ export default function ListingDetailPage() {
         {/* RIGHT: PRODUCT DETAILS & ACTIONS */}
         <div className="space-y-6">
           
+          {/* OWNER EDIT BANNER */}
+          {isFarmerListing(listing, user) && (
+            <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-2xl flex flex-wrap items-center justify-between gap-2 shadow-xs">
+              <div className="flex items-center space-x-2 text-xs text-emerald-900 font-semibold">
+                <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>You own this listing. Need to correct the product name or details?</span>
+              </div>
+              <Link
+                to="/farmer/listings"
+                className="px-3 py-1.5 bg-brand-forest hover:bg-brand-dark text-white text-xs font-bold rounded-xl shadow-xs flex items-center space-x-1.5 transition-colors"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                <span>Edit Listing Name</span>
+              </Link>
+            </div>
+          )}
+
           <div className="space-y-2 border-b border-slate-200/80 pb-5">
             <div className="flex items-center space-x-2">
               <span className="text-xs font-semibold px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-900 uppercase tracking-wide">

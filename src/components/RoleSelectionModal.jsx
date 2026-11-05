@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Sprout, ShoppingBag, CheckCircle, ArrowRight, ShieldCheck, Sparkles } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { supabase } from '../lib/supabase';
 
 export default function RoleSelectionModal({ isOpen, onClose }) {
   const { user, updateUserProfile, showToast, switchRole } = useApp();
+  const navigate = useNavigate();
   const [selectedRole, setSelectedRole] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -15,20 +17,41 @@ export default function RoleSelectionModal({ isOpen, onClose }) {
 
     setIsSubmitting(true);
     try {
-      // 1. Update in Supabase
+      // 1. Update in Supabase public.users
       const { error } = await supabase
         .from('users')
         .update({ 
           role: selectedRole,
+          role_selected: true,
           updated_at: new Date().toISOString()
         })
         .eq('id', user.id);
 
       if (error) {
-        console.warn('Role update notice:', error.message);
+        console.warn('Role update notice in users table:', error.message);
+        // Fallback update without role_selected column if it doesn't exist
+        await supabase
+          .from('users')
+          .update({ 
+            role: selectedRole,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', user.id);
       }
 
-      // 2. Persist in localStorage and update app state
+      // 2. Persist in Supabase Auth user metadata permanently
+      try {
+        await supabase.auth.updateUser({
+          data: {
+            role: selectedRole,
+            role_selected: true
+          }
+        });
+      } catch (authMetaErr) {
+        console.warn('Auth metadata update notice:', authMetaErr);
+      }
+
+      // 3. Persist in localStorage and update app state
       localStorage.setItem(`farmconnect_role_selected_${user.id}`, 'true');
       
       await updateUserProfile({
@@ -38,6 +61,13 @@ export default function RoleSelectionModal({ isOpen, onClose }) {
 
       showToast(`Welcome! You are now set up as a ${selectedRole === 'farmer' ? 'Local Farmer' : 'Produce Buyer'}.`, 'success');
       onClose();
+
+      // 4. Redirect to appropriate destination (Scenario A, step 7)
+      if (selectedRole === 'farmer') {
+        navigate('/farmer/dashboard');
+      } else {
+        navigate('/marketplace');
+      }
     } catch (err) {
       console.error('Failed to set role:', err);
       showToast('Error setting account type. Please try again.', 'error');
