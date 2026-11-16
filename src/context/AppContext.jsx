@@ -280,13 +280,21 @@ export const AppProvider = ({ children }) => {
     return saved ? JSON.parse(saved) : [];
   });
 
-  // Orders state (Real user orders)
+  // Orders state (Real user orders - Strictly scoped to authenticated user)
   const [orders, setOrders] = useState(() => {
     try {
+      const savedUserStr = localStorage.getItem('farmconnect_user');
+      if (!savedUserStr) return [];
+      const savedUser = JSON.parse(savedUserStr);
+      if (!savedUser || !savedUser.id) return [];
+
       const saved = localStorage.getItem('farmconnect_orders');
       if (saved) {
         const parsed = JSON.parse(saved);
-        return Array.isArray(parsed) ? parsed.filter(o => o && o.id !== 'FC00123' && o.farmer_id !== 'frm-1') : [];
+        const isAdmin = isAuthorizedAdminEmail(savedUser.email);
+        return Array.isArray(parsed) 
+          ? parsed.filter(o => o && o.id !== 'FC00123' && (isAdmin || o.buyer_id === savedUser.id || o.user_id === savedUser.id || isFarmerOrder(o, savedUser))) 
+          : [];
       }
     } catch (e) {
       console.warn('Orders cache read error:', e);
@@ -652,6 +660,41 @@ export const AppProvider = ({ children }) => {
     };
   }, [user?.id]);
 
+  // Fetch user orders securely from Supabase (Strictly scoped to authenticated user)
+  const fetchUserOrders = async (currentUser) => {
+    if (!currentUser || !currentUser.id) {
+      setOrders([]);
+      localStorage.removeItem('farmconnect_orders');
+      return;
+    }
+
+    try {
+      const isAllowedAdmin = isAuthorizedAdminEmail(currentUser.email);
+      let query = supabase.from('orders').select('*');
+
+      if (!isAllowedAdmin) {
+        query = query.or(`buyer_id.eq.${currentUser.id},farmer_id.eq.${currentUser.id},farmer_email.eq.${currentUser.email}`);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
+      if (!error && Array.isArray(data)) {
+        setOrders(data);
+        localStorage.setItem('farmconnect_orders', JSON.stringify(data));
+      }
+    } catch (err) {
+      console.warn('Orders fetch notice:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (user?.id) {
+      fetchUserOrders(user);
+    } else {
+      setOrders([]);
+      localStorage.removeItem('farmconnect_orders');
+    }
+  }, [user?.id, user?.email]);
+
   // Unread message count across all conversations
   const unreadMessagesCount = (messages || []).reduce((count, conv) => count + (conv.unread ? 1 : 0), 0);
 
@@ -716,7 +759,9 @@ export const AppProvider = ({ children }) => {
   const logoutUser = async () => {
     await supabase.auth.signOut();
     setUser(null);
+    setOrders([]);
     localStorage.removeItem('farmconnect_user');
+    localStorage.removeItem('farmconnect_orders');
     showToast('Logged out successfully', 'info');
   };
 

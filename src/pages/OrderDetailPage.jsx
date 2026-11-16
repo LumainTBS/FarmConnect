@@ -1,20 +1,70 @@
 import React from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { CheckCircle2, Clock, MapPin, Truck, MessageSquare, ArrowLeft, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, Clock, MapPin, Truck, MessageSquare, ArrowLeft, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { isAuthorizedAdminEmail, isFarmerOrder } from '../lib/supabase';
 
 export default function OrderDetailPage() {
   const { id } = useParams();
-  const { orders, sendMessage } = useApp();
+  const { orders, user, sendMessage } = useApp();
   const navigate = useNavigate();
 
-  const order = orders.find(o => o.id === id) || orders[0];
+  // CRITICAL SECURITY: Block unauthenticated visitors
+  if (!user) {
+    return (
+      <div className="max-w-md mx-auto px-4 py-16 text-center space-y-4">
+        <div className="w-16 h-16 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center mx-auto">
+          <Clock className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-bold text-slate-900">Sign In Required</h2>
+        <p className="text-xs text-slate-500">
+          Please sign in to your FarmConnect account to view the details and tracking status of this order.
+        </p>
+        <Link
+          to="/login"
+          className="inline-block px-5 py-2.5 rounded-xl bg-brand-forest text-white text-xs font-bold hover:bg-brand-dark transition-colors"
+        >
+          Sign In
+        </Link>
+      </div>
+    );
+  }
+
+  // Find exact order by ID - strictly no unauthorized fallback
+  const order = orders.find(o => String(o.id) === String(id));
 
   if (!order) {
     return (
-      <div className="p-8 text-center space-y-4">
-        <h2 className="text-lg font-bold">Order not found</h2>
-        <Link to="/orders" className="text-xs text-brand-forest underline">Back to Orders</Link>
+      <div className="max-w-md mx-auto px-4 py-16 text-center space-y-4">
+        <h2 className="text-lg font-bold text-slate-900">Order Not Found</h2>
+        <p className="text-xs text-slate-500">
+          The requested order could not be found or you do not have permission to view it.
+        </p>
+        <Link to="/orders" className="text-xs text-brand-forest underline font-semibold">Back to Orders</Link>
+      </div>
+    );
+  }
+
+  // Check strict ownership authorization
+  const isAdmin = isAuthorizedAdminEmail(user?.email);
+  const isAuthorized = isAdmin ||
+    order.buyer_id === user.id ||
+    order.user_id === user.id ||
+    isFarmerOrder(order, user);
+
+  if (!isAuthorized) {
+    return (
+      <div className="max-w-md mx-auto px-4 py-16 text-center space-y-4">
+        <div className="w-16 h-16 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
+          <ShieldAlert className="w-8 h-8" />
+        </div>
+        <h2 className="text-lg font-bold text-slate-900">Access Denied</h2>
+        <p className="text-xs text-slate-500">
+          You are not authorized to view the private order details or customer coordinates for this order.
+        </p>
+        <Link to="/orders" className="text-xs text-brand-forest underline font-semibold">
+          Back to My Orders
+        </Link>
       </div>
     );
   }

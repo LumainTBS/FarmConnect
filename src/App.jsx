@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
 import { isAuthorizedAdminEmail } from './lib/supabase';
 import Header from './components/Header';
@@ -59,11 +59,26 @@ function AdminProtectedRoute({ children }) {
   return children;
 }
 
+function ScrollToTop() {
+  const { pathname } = useLocation();
+
+  React.useEffect(() => {
+    window.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: 'instant'
+    });
+  }, [pathname]);
+
+  return null;
+}
+
 function AppContent() {
   const { isRoleModalOpen, setIsRoleModalOpen } = useApp();
 
   return (
     <Router>
+      <ScrollToTop />
       <div className="min-h-screen flex flex-col bg-[#F8F9FA] text-slate-900 font-sans selection:bg-brand-forest selection:text-white">
         <Header />
         <main className="flex-1">

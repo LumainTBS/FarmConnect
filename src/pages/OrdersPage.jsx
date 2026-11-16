@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Package, CheckCircle2, Clock, ChevronRight, Star, MessageSquare } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { isFarmerOrder } from '../lib/supabase';
+import { isFarmerOrder, isAuthorizedAdminEmail } from '../lib/supabase';
 
 export default function OrdersPage({ isFarmerView = false }) {
   const { orders, user, updateOrderStatus, rateOrderFarmer } = useApp();
@@ -12,11 +12,58 @@ export default function OrdersPage({ isFarmerView = false }) {
   const [ratingComment, setRatingComment] = useState('');
   const navigate = useNavigate();
 
-  const isFarmer = isFarmerView || user?.role === 'farmer';
+  // CRITICAL PRIVACY & SECURITY: Block unauthenticated users from seeing any orders, phone numbers, or coordinates
+  if (!user) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-16 pb-28 text-center space-y-6">
+        <div className="w-20 h-20 rounded-full bg-emerald-50 border border-emerald-100 text-brand-forest flex items-center justify-center mx-auto shadow-xs">
+          <Package className="w-10 h-10 text-brand-forest stroke-[1.8]" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+            Your orders will appear here once you sign in.
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto leading-relaxed">
+            Sign in to your FarmConnect account to track harvest deliveries, review landmark collection points, and manage order dispatches securely.
+          </p>
+        </div>
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+          <Link
+            to="/login"
+            className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-brand-forest hover:bg-brand-dark text-white font-bold text-xs transition-all shadow-md shadow-emerald-950/15"
+          >
+            Sign In
+          </Link>
+          <Link
+            to="/register"
+            className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold text-xs transition-all shadow-xs"
+          >
+            Create Free Account
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
-  // Filter orders by role & tab
+  const isFarmer = isFarmerView || user?.role === 'farmer';
+  const isAdmin = isAuthorizedAdminEmail(user?.email);
+
+  // Filter orders by role & tab with strict user ownership verification
   const filteredOrders = orders.filter(o => {
-    if (isFarmer && !isFarmerOrder(o, user)) return false;
+    // Ownership check: must be buyer, farmer, or authorized admin
+    const isOwner = isAdmin ||
+      o.buyer_id === user.id ||
+      o.user_id === user.id ||
+      isFarmerOrder(o, user);
+
+    if (!isOwner) return false;
+
+    if (isFarmer) {
+      if (!isFarmerOrder(o, user) && !isAdmin) return false;
+    } else {
+      if (o.buyer_id !== user.id && o.user_id !== user.id && !isAdmin) return false;
+    }
+
     const isStatusActive = o.order_status === 'pending' || o.order_status === 'confirmed';
     if (activeTab === 'active') return isStatusActive;
     return !isStatusActive; // delivered or cancelled

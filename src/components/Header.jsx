@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { 
   Menu, Search, ShoppingBag, PlusCircle, 
   Award, TrendingUp, ChevronDown, LogOut, User, Package, Sprout, CreditCard, ShieldCheck,
-  Bell, CheckCircle, AlertTriangle, ArrowRight, MessageSquare
+  Bell, CheckCircle, AlertTriangle, ArrowRight, MessageSquare, KeyRound, UserPlus
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { isAuthorizedAdminEmail } from '../lib/supabase';
@@ -372,18 +372,23 @@ export default function Header() {
                   )}
                 </div>
               ) : (
-                <div className="flex items-center space-x-1.5">
+                <div className="flex items-center space-x-1 sm:space-x-1.5 shrink-0">
                   <Link
                     to="/login"
-                    className="text-xs font-semibold px-3 py-1.5 rounded-lg text-slate-700 hover:bg-slate-100 transition-colors"
+                    className="flex items-center justify-center p-2 sm:px-3 sm:py-1.5 rounded-lg text-slate-700 hover:text-brand-forest hover:bg-slate-100 transition-all active:scale-95 text-xs font-semibold"
+                    aria-label="Log In"
+                    title="Log In"
                   >
-                    Log In
+                    <KeyRound className="w-5 h-5 sm:hidden text-slate-700 hover:text-brand-forest transition-colors" />
+                    <span className="hidden sm:inline">Log In</span>
                   </Link>
                   <Link
                     to="/register"
-                    className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-brand-forest text-white hover:bg-brand-dark transition-colors"
+                    className="group relative flex items-center space-x-1 sm:space-x-1.5 text-xs font-semibold px-2.5 sm:px-3 py-1.5 rounded-lg bg-brand-forest text-white hover:bg-brand-dark active:scale-95 transition-all duration-200 shadow-xs"
+                    aria-label="Register"
                   >
-                    Register
+                    <UserPlus className="w-3.5 h-3.5 transition-transform duration-200 group-hover:scale-110 group-active:translate-x-0.5 motion-reduce:transform-none" />
+                    <span>Register</span>
                   </Link>
                 </div>
               )}

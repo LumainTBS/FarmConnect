@@ -113,15 +113,14 @@ export default function HomePage() {
             ))}
           </div>
 
-          {/* Top Controls & Navigation Dots */}
-          <div className="relative z-10 p-5 sm:p-7 flex items-center justify-between">
+          {/* Top Controls & Navigation Dots (Clean on Mobile, Visible on Tablet/Desktop) */}
+          <div className="relative z-10 px-5 pt-5 sm:p-7 hidden sm:flex items-center justify-between">
             <div className="inline-flex items-center space-x-2 text-emerald-200 text-xs font-semibold tracking-wide">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399] animate-pulse" />
               <span>Kingdom of Eswatini &middot; Agricultural Exchange</span>
             </div>
 
-            {/* Dots Indicator */}
-            <div className="flex items-center space-x-1.5 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10">
+            {/* Dots Indicator - Hidden on mobile, visible on desktop */}
+            <div className="hidden sm:flex items-center space-x-1.5 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10">
               {heroSlides.map((_, idx) => (
                 <button
                   key={idx}
@@ -136,7 +135,7 @@ export default function HomePage() {
           </div>
 
           {/* Hero Content Area */}
-          <div className="relative z-10 px-6 sm:px-8 pb-8 pt-2 max-w-2xl space-y-4">
+          <div className="relative z-10 px-5 sm:px-8 pb-8 pt-6 sm:pt-2 max-w-2xl space-y-4">
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight leading-tight drop-shadow-sm">
               Local Farms.<br />Real Products.<br />Stronger Communities.
             </h1>
