@@ -5,6 +5,25 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+// Administrator Email Allowlist (Restricted to two authorized accounts)
+export const ADMIN_EMAILS = [
+  'menzimalumane@gmail.com',
+  'farmconnectsz@gmail.com',
+  'farmconnect.sz@gmail.com'
+];
+
+export const isAuthorizedAdminEmail = (email) => {
+  if (!email || typeof email !== 'string') return false;
+  const normalized = email.trim().toLowerCase();
+  if (ADMIN_EMAILS.includes(normalized)) return true;
+  const [localPart, domain] = normalized.split('@');
+  if (domain === 'gmail.com') {
+    const cleanLocal = localPart.replace(/\./g, '');
+    return ['menzimalumane', 'farmconnectsz'].includes(cleanLocal);
+  }
+  return false;
+};
+
 // UUID Validation and Generation Helpers
 export const isValidUUID = (str) => {
   if (!str || typeof str !== 'string') return false;

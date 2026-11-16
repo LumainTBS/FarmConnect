@@ -5,7 +5,8 @@ import {
   SUBSCRIPTION_TIERS,
   calculateOrderCommission,
   isValidUUID,
-  generateUUID
+  generateUUID,
+  isAuthorizedAdminEmail
 } from '../lib/supabase';
 
 // Helper function to check if a listing belongs to the currently logged in farmer
@@ -76,6 +77,9 @@ export const AppProvider = ({ children }) => {
         authUser.identities?.some(id => id.provider === 'google') ||
         Boolean(meta.iss && meta.iss.includes('accounts.google.com'));
 
+      // Check administrator allowlist (Strict: only 2 authorized emails)
+      const isAllowedAdmin = isAuthorizedAdminEmail(authUser.email);
+
       // Check if user has an existing assigned role in DB or metadata
       const hasStoredLocalRole = localStorage.getItem(`farmconnect_role_selected_${authUser.id}`) === 'true';
       const dbRole = profile?.role;
@@ -88,26 +92,57 @@ export const AppProvider = ({ children }) => {
 
       // Scenario A: New user registering with Gmail
       // ONLY trigger the role selection card if this is a Google registration and the user does NOT yet have an assigned role
-      const isNewGoogleRegistration = isGoogleUser && !hasAssignedRole;
+      // And NEVER trigger for authorized administrators!
+      const isNewGoogleRegistration = isGoogleUser && !hasAssignedRole && !isAllowedAdmin;
 
-      const activeRole = isDbRoleAssigned 
-        ? dbRole 
-        : (isMetaRoleAssigned ? meta.role : (isNewGoogleRegistration ? 'pending' : 'buyer'));
+      let activeRole = isAllowedAdmin
+        ? 'admin'
+        : (isDbRoleAssigned 
+            ? dbRole 
+            : (isMetaRoleAssigned ? meta.role : (isNewGoogleRegistration ? 'pending' : 'buyer')));
+
+      // Strict enforcement: ordinary users cannot hold the admin role
+      if (activeRole === 'admin' && !isAllowedAdmin) {
+        activeRole = isDbRoleAssigned && dbRole !== 'admin' ? dbRole : 'buyer';
+      }
 
       let synced = null;
 
       if (profile) {
-        // If profile has generic avatar or no avatar, sync real Google avatar
         const updates = {};
+        // Sync avatar
         if ((!profile.profile_picture_url || profile.profile_picture_url.includes('unsplash.com')) && (meta.avatar_url || meta.picture)) {
           updates.profile_picture_url = meta.avatar_url || meta.picture;
         }
+        // Sync full name
         if (!profile.full_name && (meta.full_name || meta.name)) {
           updates.full_name = meta.full_name || meta.name;
         }
+        // Sync admin role if authorized
+        if (isAllowedAdmin && profile.role !== 'admin') {
+          updates.role = 'admin';
+        } else if (!isAllowedAdmin && profile.role === 'admin') {
+          updates.role = 'buyer';
+        }
+        // Sync phone & address fields from auth metadata if missing in profile
+        if (!profile.phone_number && meta.phone_number) updates.phone_number = meta.phone_number;
+        if (!profile.settlement_type && meta.settlement_type) updates.settlement_type = meta.settlement_type;
+        if (!profile.inkhundla && meta.inkhundla) updates.inkhundla = meta.inkhundla;
+        if (!profile.landmark_mountain && meta.landmark_mountain) updates.landmark_mountain = meta.landmark_mountain;
+        if (!profile.landmark_river && meta.landmark_river) updates.landmark_river = meta.landmark_river;
+        if (!profile.street_address && meta.street_address) updates.street_address = meta.street_address;
+        if (!profile.house_number && meta.house_number) updates.house_number = meta.house_number;
+        if (!profile.plot_number && meta.plot_number) updates.plot_number = meta.plot_number;
+        if (!profile.buyer_type && meta.buyer_type) updates.buyer_type = meta.buyer_type;
+        if (profile.commission_consent_given === undefined && meta.commission_consent_given !== undefined) {
+          updates.commission_consent_given = Boolean(meta.commission_consent_given);
+        }
+
         if (Object.keys(updates).length > 0) {
           try {
-            await supabase.from('users').update(updates).eq('id', authUser.id);
+            updates.updated_at = new Date().toISOString();
+            const { error: updateErr } = await supabase.from('users').update(updates).eq('id', authUser.id);
+            if (updateErr) console.warn('Profile sync update notice:', updateErr.message);
           } catch (e) {
             console.warn('Profile update notice:', e);
           }
@@ -118,58 +153,76 @@ export const AppProvider = ({ children }) => {
           farmer_id: authUser.id,
           email: authUser.email,
           full_name: updates.full_name || profile.full_name || fallbackName,
-          role: activeRole,
-          role_selected: hasAssignedRole || isRoleExplicitlyMarked,
-          phone_number: profile.phone_number || '',
+          role: isAllowedAdmin ? 'admin' : (updates.role || activeRole),
+          is_admin: isAllowedAdmin,
+          role_selected: isAllowedAdmin || hasAssignedRole || isRoleExplicitlyMarked,
+          phone_number: updates.phone_number || profile.phone_number || '',
           profile_picture_url: updates.profile_picture_url || profile.profile_picture_url || fallbackAvatar,
           id_document_url: profile.id_document_url || null,
           is_verified: profile.is_verified ?? false,
           verification_status: profile.verification_status || (profile.is_verified ? 'approved' : 'pending'),
-          settlement_type: profile.settlement_type || meta.settlement_type || 'rural',
-          inkhundla: profile.inkhundla || meta.inkhundla || '',
-          street_address: profile.street_address || '',
+          settlement_type: updates.settlement_type || profile.settlement_type || meta.settlement_type || 'rural',
+          inkhundla: updates.inkhundla || profile.inkhundla || meta.inkhundla || '',
+          street_address: updates.street_address || profile.street_address || '',
           subscription_tier: profile.subscription_tier || meta.subscription_tier || 'free',
-          location: profile.street_address 
-            ? `${profile.street_address}, ${profile.inkhundla || ''}` 
-            : (profile.inkhundla ? `${profile.inkhundla}, Manzini Region` : 'Manzini Region, Eswatini')
+          location: (updates.street_address || profile.street_address)
+            ? `${updates.street_address || profile.street_address}, ${updates.inkhundla || profile.inkhundla || ''}` 
+            : ((updates.inkhundla || profile.inkhundla) ? `${updates.inkhundla || profile.inkhundla}, Manzini Region` : 'Manzini Region, Eswatini')
         };
       } else {
-        // If no row in public.users yet, create one
+        // If no row in public.users yet, create one using only valid existing columns
+        const newRole = isAllowedAdmin ? 'admin' : activeRole;
+        const initialProfile = {
+          id: authUser.id,
+          email: authUser.email,
+          full_name: fallbackName,
+          role: newRole,
+          phone_number: meta.phone_number || '',
+          profile_picture_url: fallbackAvatar,
+          is_verified: false,
+          verification_status: 'pending',
+          settlement_type: meta.settlement_type || 'rural',
+          inkhundla: meta.inkhundla || null,
+          landmark_mountain: meta.landmark_mountain || null,
+          landmark_river: meta.landmark_river || null,
+          street_address: meta.street_address || null,
+          house_number: meta.house_number || null,
+          plot_number: meta.plot_number || null,
+          buyer_type: meta.buyer_type || null,
+          commission_consent_given: Boolean(meta.commission_consent_given),
+          subscription_tier: meta.subscription_tier || 'free',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+
+        try {
+          const { error: insertErr } = await supabase.from('users').upsert(initialProfile);
+          if (insertErr) {
+            console.warn('Initial user upsert notice:', insertErr.message);
+          }
+        } catch (upsertErr) {
+          console.warn('Initial user upsert notice:', upsertErr);
+        }
+
         synced = {
           id: authUser.id,
           farmer_id: authUser.id,
           email: authUser.email,
           full_name: fallbackName,
-          role: activeRole,
-          role_selected: hasAssignedRole || isRoleExplicitlyMarked,
-          phone_number: '',
+          role: newRole,
+          is_admin: isAllowedAdmin,
+          role_selected: isAllowedAdmin || hasAssignedRole || isRoleExplicitlyMarked,
+          phone_number: meta.phone_number || '',
           profile_picture_url: fallbackAvatar,
           id_document_url: null,
           is_verified: false,
           verification_status: 'pending',
           settlement_type: meta.settlement_type || 'rural',
           inkhundla: meta.inkhundla || '',
-          street_address: '',
+          street_address: meta.street_address || '',
           subscription_tier: meta.subscription_tier || 'free',
           location: meta.inkhundla ? `${meta.inkhundla}, Manzini Region` : 'Manzini Region, Eswatini'
         };
-
-        try {
-          await supabase.from('users').upsert({
-            id: synced.id,
-            email: synced.email,
-            full_name: synced.full_name,
-            role: synced.role,
-            profile_picture_url: synced.profile_picture_url,
-            is_verified: synced.is_verified,
-            verification_status: synced.verification_status,
-            settlement_type: synced.settlement_type,
-            inkhundla: synced.inkhundla,
-            subscription_tier: synced.subscription_tier
-          });
-        } catch (upsertErr) {
-          console.warn('Initial user upsert notice:', upsertErr);
-        }
       }
 
       setUser(synced);
@@ -177,8 +230,8 @@ export const AppProvider = ({ children }) => {
 
       // ONLY display the Buyer/Farmer selection card when a user registers for the first time
       // using their Gmail account without an assigned role (Scenario A).
-      // For existing Gmail logins (Scenario B) and other auth methods (Scenario C), do NOT display.
-      if (isNewGoogleRegistration) {
+      // For existing Gmail logins (Scenario B), other auth methods (Scenario C), and Administrators, do NOT display.
+      if (isNewGoogleRegistration && !isAllowedAdmin) {
         setIsRoleModalOpen(true);
       } else {
         setIsRoleModalOpen(false);
@@ -669,6 +722,13 @@ export const AppProvider = ({ children }) => {
 
   const switchRole = async (newRole) => {
     if (!user) return;
+
+    // STRICT ACCESS CONTROL: Only authorized admin emails can switch into Admin mode
+    if (newRole === 'admin' && !isAuthorizedAdminEmail(user.email)) {
+      showToast('Access denied: Administrator role is restricted to authorized accounts.', 'error');
+      return;
+    }
+
     const updated = {
       ...user,
       role: newRole,
@@ -689,12 +749,20 @@ export const AppProvider = ({ children }) => {
 
   const updateUserProfile = async (updatedFields) => {
     if (!user) return;
-    const updated = { ...user, ...updatedFields };
+
+    // Strip unauthorized admin role elevation
+    const sanitizedFields = { ...updatedFields };
+    if (sanitizedFields.role === 'admin' && !isAuthorizedAdminEmail(user.email)) {
+      delete sanitizedFields.role;
+      showToast('Access denied: Cannot assign administrator role.', 'error');
+    }
+
+    const updated = { ...user, ...sanitizedFields };
     setUser(updated);
     localStorage.setItem('farmconnect_user', JSON.stringify(updated));
 
     try {
-      const { error } = await supabase.from('users').update(updatedFields).eq('id', user.id);
+      const { error } = await supabase.from('users').update(sanitizedFields).eq('id', user.id);
       if (error) {
         console.warn('Supabase profile update notice:', error.message);
       }
@@ -1284,8 +1352,13 @@ export const AppProvider = ({ children }) => {
     return true;
   };
 
-  // Admin Verification & Tier Management
+  // Admin Verification & Tier Management (Restricted to Authorized Admins)
   const adminApproveFarmer = async (farmerId) => {
+    if (!isAuthorizedAdminEmail(user?.email)) {
+      showToast('Access denied: Administrator permissions required.', 'error');
+      return;
+    }
+
     setFarmers(prev => prev.map(f =>
       f.id === farmerId ? { ...f, is_verified: true, verification_status: 'approved' } : f
     ));
@@ -1306,6 +1379,11 @@ export const AppProvider = ({ children }) => {
   };
 
   const adminRejectFarmer = async (farmerId, reason = '') => {
+    if (!isAuthorizedAdminEmail(user?.email)) {
+      showToast('Access denied: Administrator permissions required.', 'error');
+      return;
+    }
+
     setFarmers(prev => prev.map(f =>
       f.id === farmerId ? { ...f, is_verified: false, verification_status: 'rejected' } : f
     ));
@@ -1326,6 +1404,11 @@ export const AppProvider = ({ children }) => {
   };
 
   const adminChangeFarmerTier = async (farmerId, newTier) => {
+    if (!isAuthorizedAdminEmail(user?.email)) {
+      showToast('Access denied: Administrator permissions required.', 'error');
+      return;
+    }
+
     setFarmers(prev => prev.map(f =>
       f.id === farmerId ? { ...f, subscription_tier: newTier } : f
     ));

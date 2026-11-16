@@ -128,7 +128,7 @@ export default function ListingDetailPage() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4 pb-20 space-y-6">
-      
+
       {/* Top Breadcrumb & Back */}
       <div className="flex items-center justify-between">
         <button
@@ -146,16 +146,15 @@ export default function ListingDetailPage() {
 
       {/* Main Grid: Left Photos, Right Details */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-        
+
         {/* LEFT: GALLERY */}
         <div className="space-y-3">
-          <div className={`relative aspect-4/3 rounded-2xl overflow-hidden border shadow-sm ${
-            isOutOfStock ? 'bg-slate-100 border-slate-300 grayscale opacity-80' : 'bg-slate-100 border-slate-200'
-          }`}>
-            <img 
-              src={images[activeImageIndex]} 
-              alt={listing.product_type} 
-              className="w-full h-full object-cover transition-all duration-300" 
+          <div className={`relative aspect-4/3 rounded-2xl overflow-hidden border shadow-sm ${isOutOfStock ? 'bg-slate-100 border-slate-300 grayscale opacity-80' : 'bg-slate-100 border-slate-200'
+            }`}>
+            <img
+              src={images[activeImageIndex]}
+              alt={listing.product_type}
+              className="w-full h-full object-cover transition-all duration-300"
             />
 
             {/* Carousel Arrows */}
@@ -219,9 +218,8 @@ export default function ListingDetailPage() {
                 <button
                   key={idx}
                   onClick={() => setActiveImageIndex(idx)}
-                  className={`w-16 h-16 rounded-xl overflow-hidden border-2 transition-all ${
-                    activeImageIndex === idx ? 'border-brand-forest shadow-sm' : 'border-transparent opacity-70 hover:opacity-100'
-                  }`}
+                  className={`w-16 h-16 rounded-xl overflow-hidden border-2 transition-all ${activeImageIndex === idx ? 'border-brand-forest shadow-sm' : 'border-transparent opacity-70 hover:opacity-100'
+                    }`}
                 >
                   <img src={img} alt="" className="w-full h-full object-cover" />
                 </button>
@@ -232,7 +230,7 @@ export default function ListingDetailPage() {
 
         {/* RIGHT: PRODUCT DETAILS & ACTIONS */}
         <div className="space-y-6">
-          
+
           {/* OWNER EDIT BANNER */}
           {isFarmerListing(listing, user) && (
             <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-2xl flex flex-wrap items-center justify-between gap-2 shadow-xs">
@@ -332,11 +330,10 @@ export default function ListingDetailPage() {
               <button
                 onClick={() => notifyFarmerToRestock(listing.id)}
                 disabled={maxAttemptsReached}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 shadow-xs transition-colors ${
-                  maxAttemptsReached 
-                    ? 'bg-slate-200 text-slate-500 cursor-not-allowed border border-slate-300' 
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 shadow-xs transition-colors ${maxAttemptsReached
+                    ? 'bg-slate-200 text-slate-500 cursor-not-allowed border border-slate-300'
                     : 'bg-amber-500 hover:bg-amber-600 text-white cursor-pointer'
-                }`}
+                  }`}
               >
                 <BellRing className="w-3.5 h-3.5" />
                 <span>{maxAttemptsReached ? 'Alerted (2/2)' : `Notify Farmer (${attempts}/2)`}</span>
@@ -385,10 +382,10 @@ export default function ListingDetailPage() {
             <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Seller Information</div>
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
-                <img 
-                  src={farmer.avatar} 
-                  alt={farmer.name} 
-                  className="w-12 h-12 rounded-full object-cover border border-slate-200" 
+                <img
+                  src={farmer.avatar}
+                  alt={farmer.name}
+                  className="w-12 h-12 rounded-full object-cover border border-slate-200"
                 />
                 <div>
                   <div className="font-bold text-sm text-slate-900 flex items-center space-x-1">

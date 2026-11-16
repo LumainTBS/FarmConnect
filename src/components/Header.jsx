@@ -6,6 +6,7 @@ import {
   Bell, CheckCircle, AlertTriangle, ArrowRight, MessageSquare
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { isAuthorizedAdminEmail } from '../lib/supabase';
 import MobileDrawer from './MobileDrawer';
 
 export default function Header() {
@@ -26,6 +27,7 @@ export default function Header() {
 
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const isFarmer = user?.role === 'farmer';
+  const isAdmin = isAuthorizedAdminEmail(user?.email);
 
   // Alerts specifically directed to this farmer
   const farmerRestockAlerts = (restockAlerts || []).filter(a => 
@@ -83,6 +85,12 @@ export default function Header() {
               {!isFarmer && (
                 <Link to="/subscriptions" className="hover:text-brand-forest transition-colors">
                   Pricing
+                </Link>
+              )}
+              {isAdmin && (
+                <Link to="/admin" className="hover:text-blue-800 transition-colors flex items-center space-x-1 text-blue-700 font-bold bg-blue-50/80 px-2.5 py-1 rounded-lg border border-blue-200">
+                  <ShieldCheck className="w-4 h-4 text-blue-600" />
+                  <span>Admin Portal</span>
                 </Link>
               )}
             </nav>
@@ -330,14 +338,16 @@ export default function Header() {
                           </>
                         )}
 
-                        <Link 
-                          to="/admin" 
-                          onClick={() => setIsDropdownOpen(false)}
-                          className="flex items-center space-x-2 px-4 py-2 hover:bg-slate-50 hover:text-brand-forest text-slate-800"
-                        >
-                          <ShieldCheck className="w-4 h-4 text-blue-600" />
-                          <span>Admin Portal</span>
-                        </Link>
+                        {isAdmin && (
+                          <Link 
+                            to="/admin" 
+                            onClick={() => setIsDropdownOpen(false)}
+                            className="flex items-center space-x-2 px-4 py-2 hover:bg-slate-50 hover:text-brand-forest text-blue-700 font-bold"
+                          >
+                            <ShieldCheck className="w-4 h-4 text-blue-600" />
+                            <span>Admin Portal</span>
+                          </Link>
+                        )}
 
                         <Link 
                           to="/account" 

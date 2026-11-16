@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Sprout, ShoppingBag } from 'lucide-react';
+import { Sprout, ShoppingBag, CheckCircle2, Mail, Lock, Phone, User, MapPin } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { supabase, MANZINI_INKHUNDLA_LIST } from '../lib/supabase';
+import { supabase, MANZINI_INKHUNDLA_LIST, isAuthorizedAdminEmail } from '../lib/supabase';
 
 export default function RegisterPage() {
   const { registerUser } = useApp();
@@ -13,7 +13,8 @@ export default function RegisterPage() {
   
   // Step 2: Form fields
   const [fullName, setFullName] = useState('');
-  const [emailOrPhone, setEmailOrPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
   const [buyerType, setBuyerType] = useState('household');
   
@@ -30,6 +31,8 @@ export default function RegisterPage() {
   const [commissionConsent, setCommissionConsent] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [emailConfirmationRequired, setEmailConfirmationRequired] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -40,32 +43,43 @@ export default function RegisterPage() {
       return;
     }
 
+    if (!email.includes('@')) {
+      setErrorMsg('Please provide a valid email address.');
+      return;
+    }
+
+    if (password.length < 6) {
+      setErrorMsg('Password must be at least 6 characters long.');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
       const isRural = settlementType === 'rural';
-      const locationText = isRural 
-        ? `${inkhundla}, Manzini Region` 
-        : `${streetAddress} ${houseNumber}, Urban`;
+      const cleanEmail = email.trim().toLowerCase();
+      const isAllowedAdmin = isAuthorizedAdminEmail(cleanEmail);
+      const assignedRole = isAllowedAdmin ? 'admin' : role;
 
-      if (!emailOrPhone.includes('@')) {
-        setErrorMsg('Please provide a valid email address.');
-        setIsLoading(false);
-        return;
-      }
-
-      // Register with Supabase Auth
+      // 1. Register with Supabase Authentication, storing all metadata in auth record
       const { data, error } = await supabase.auth.signUp({
-        email: emailOrPhone.trim(),
+        email: cleanEmail,
         password,
         options: {
           data: {
-            full_name: fullName,
-            role,
-            role_selected: true,
+            full_name: fullName.trim(),
+            role: assignedRole,
+            phone_number: phoneNumber.trim(),
             settlement_type: settlementType,
             inkhundla: isRural ? inkhundla : null,
-            location: locationText
+            landmark_mountain: isRural ? mountain.trim() : null,
+            landmark_river: isRural ? river.trim() : null,
+            street_address: !isRural ? streetAddress.trim() : null,
+            house_number: !isRural ? houseNumber.trim() : null,
+            plot_number: !isRural ? plotNumber.trim() : null,
+            buyer_type: assignedRole === 'buyer' ? buyerType : null,
+            commission_consent_given: assignedRole === 'farmer',
+            role_selected: true
           }
         }
       });
@@ -83,47 +97,63 @@ export default function RegisterPage() {
         return;
       }
 
-      // Mark role explicitly chosen for this user
+      // Mark role explicitly chosen for this user in local state
       localStorage.setItem(`farmconnect_role_selected_${realUserId}`, 'true');
 
-      // Save complete profile to public.users
+      // 2. Prepare database record containing ONLY columns that exist in public.users
       const profileData = {
         id: realUserId,
-        role,
-        role_selected: true,
-        full_name: fullName || (role === 'farmer' ? 'Sizwe Nsibande' : 'Mandla Dlamini'),
-        email: emailOrPhone.trim(),
-        phone_number: '',
-        buyer_type: role === 'buyer' ? buyerType : null,
+        email: cleanEmail,
+        full_name: fullName.trim() || (assignedRole === 'farmer' ? 'Sizwe Nsibande' : 'Mandla Dlamini'),
+        role: assignedRole,
+        phone_number: phoneNumber.trim() || null,
+        buyer_type: assignedRole === 'buyer' ? buyerType : null,
         settlement_type: settlementType,
         inkhundla: isRural ? inkhundla : null,
-        landmark_mountain: isRural ? mountain : null,
-        landmark_river: isRural ? river : null,
-        street_address: !isRural ? streetAddress : null,
-        house_number: !isRural ? houseNumber : null,
-        plot_number: !isRural ? plotNumber : null,
-        location: locationText,
-        commission_consent_given: role === 'farmer' ? true : false,
-        profile_picture_url: role === 'farmer' 
+        landmark_mountain: isRural ? mountain.trim() : null,
+        landmark_river: isRural ? river.trim() : null,
+        street_address: !isRural ? streetAddress.trim() : null,
+        house_number: !isRural ? houseNumber.trim() : null,
+        plot_number: !isRural ? plotNumber.trim() : null,
+        commission_consent_given: assignedRole === 'farmer',
+        profile_picture_url: assignedRole === 'farmer' 
           ? 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=150&q=80' 
           : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
         is_verified: false,
-        verification_status: 'pending'
+        verification_status: 'pending',
+        subscription_tier: 'free',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       };
 
-      try {
-        await supabase.from('users').upsert(profileData);
-      } catch (upsertErr) {
-        console.warn('Profile upsert notice:', upsertErr);
+      // 3. If an active session was created immediately (email confirmation disabled):
+      if (data?.session) {
+        try {
+          const { error: upsertErr } = await supabase.from('users').upsert(profileData);
+          if (upsertErr) {
+            console.warn('Profile upsert notice:', upsertErr.message);
+          }
+        } catch (upsertErr) {
+          console.warn('Profile upsert exception:', upsertErr);
+        }
+
+        registerUser({
+          ...profileData,
+          farmer_id: realUserId
+        });
+
+        setIsLoading(false);
+        if (isAllowedAdmin) {
+          navigate('/admin');
+        } else {
+          navigate(assignedRole === 'farmer' ? '/farmer/dashboard' : '/marketplace');
+        }
+      } else {
+        // 4. Email confirmation required: Inform user gracefully
+        setRegisteredEmail(cleanEmail);
+        setEmailConfirmationRequired(true);
+        setIsLoading(false);
       }
-
-      registerUser({
-        ...profileData,
-        farmer_id: realUserId
-      });
-
-      setIsLoading(false);
-      navigate(role === 'farmer' ? '/farmer/dashboard' : '/marketplace');
 
     } catch (err) {
       console.error('Registration error:', err);
@@ -158,6 +188,44 @@ export default function RegisterPage() {
       setIsLoading(false);
     }
   };
+
+  // EMAIL VERIFICATION CONFIRMATION SCREEN
+  if (emailConfirmationRequired) {
+    return (
+      <div className="min-h-[85vh] flex items-center justify-center px-4 py-8">
+        <div className="w-full max-w-md bg-white rounded-3xl border border-slate-200/90 shadow-xl p-8 space-y-6 text-center">
+          <div className="w-16 h-16 bg-emerald-100 text-emerald-800 rounded-full flex items-center justify-center mx-auto shadow-inner">
+            <CheckCircle2 className="w-8 h-8 text-emerald-600" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Account Created!</h2>
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+              We have sent a verification email to:
+              <br />
+              <strong className="text-brand-forest font-bold">{registeredEmail}</strong>
+            </p>
+            <p className="text-xs text-slate-500 pt-2">
+              Please click the confirmation link in the email to activate your Farm Connect account, then sign in.
+            </p>
+          </div>
+          <div className="pt-4 space-y-3">
+            <Link
+              to="/login"
+              className="w-full inline-block py-3 rounded-xl bg-brand-forest text-white font-bold text-xs hover:bg-brand-dark transition-colors shadow-sm"
+            >
+              Proceed to Log In
+            </Link>
+            <Link
+              to="/"
+              className="w-full inline-block py-2 text-xs text-slate-500 hover:text-slate-800 font-medium"
+            >
+              Back to Home
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-[85vh] flex items-center justify-center px-4 py-8">
@@ -243,18 +311,32 @@ export default function RegisterPage() {
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Email or Phone Number
-            </label>
-            <input
-              type="text"
-              required
-              value={emailOrPhone}
-              onChange={(e) => setEmailOrPhone(e.target.value)}
-              placeholder="e.g. +268 7612 3456 or name@gmail.com"
-              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm text-slate-900 focus:bg-white focus:border-brand-forest focus:outline-none"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Email Address
+              </label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="name@gmail.com"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm text-slate-900 focus:bg-white focus:border-brand-forest focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Phone Number
+              </label>
+              <input
+                type="tel"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                placeholder="e.g. +268 7612 3456"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm text-slate-900 focus:bg-white focus:border-brand-forest focus:outline-none"
+              />
+            </div>
           </div>
 
           <div>
@@ -264,9 +346,10 @@ export default function RegisterPage() {
             <input
               type="password"
               required
+              minLength={6}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Create a strong password"
+              placeholder="Create a strong password (min 6 chars)"
               className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm text-slate-900 focus:bg-white focus:border-brand-forest focus:outline-none"
             />
           </div>
@@ -426,7 +509,7 @@ export default function RegisterPage() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-3 rounded-xl bg-brand-forest text-white font-bold text-sm hover:bg-brand-dark transition-colors shadow-sm"
+            className="w-full py-3 rounded-xl bg-brand-forest text-white font-bold text-sm hover:bg-brand-dark transition-colors shadow-sm disabled:opacity-60"
           >
             {isLoading ? 'Creating Account...' : 'Sign Up'}
           </button>
@@ -444,7 +527,7 @@ export default function RegisterPage() {
           onClick={handleGoogleSignup}
           type="button"
           disabled={isLoading}
-          className="w-full py-2.5 px-4 rounded-xl border border-slate-300 bg-white text-slate-700 font-semibold text-xs hover:bg-slate-50 transition-colors flex items-center justify-center space-x-2 cursor-pointer"
+          className="w-full py-2.5 px-4 rounded-xl border border-slate-300 bg-white text-slate-700 font-semibold text-xs hover:bg-slate-50 transition-colors flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-60"
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24">
             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>

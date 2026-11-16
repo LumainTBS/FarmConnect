@@ -1,17 +1,19 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
   ShieldCheck, AlertTriangle, CheckCircle, XCircle, DollarSign, 
   Users, Package, TrendingUp, CreditCard, Percent, Eye, FileText, 
   Filter, Search, ArrowUpRight, Award, RefreshCw, BarChart3, PieChart as PieIcon,
-  Activity, ArrowDownRight, Layers, Printer, Download, Calendar, Sparkles, X
+  Activity, ArrowDownRight, Layers, Printer, Download, Calendar, Sparkles, X, ShieldAlert
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { SUBSCRIPTION_TIERS } from '../lib/supabase';
+import { SUBSCRIPTION_TIERS, isAuthorizedAdminEmail } from '../lib/supabase';
 
 export default function AdminDashboardPage() {
   const { 
     user, 
+    authLoading,
+    showToast,
     farmers,  
     orders, 
     listings, 
@@ -21,6 +23,20 @@ export default function AdminDashboardPage() {
     adminChangeFarmerTier,
     switchRole
   } = useApp();
+  const navigate = useNavigate();
+
+  // Strict Administrator Access Guard
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        showToast('Please sign in to access the administration portal.', 'error');
+        navigate('/login', { replace: true });
+      } else if (!isAuthorizedAdminEmail(user.email)) {
+        showToast('Access denied: You do not have administrator permissions.', 'error');
+        navigate(user.role === 'farmer' ? '/farmer/dashboard' : '/marketplace', { replace: true });
+      }
+    }
+  }, [user, authLoading, navigate, showToast]);
 
   const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'analytics' | 'verifications' | 'subscriptions' | 'commissions'
   const [verificationFilter, setVerificationFilter] = useState('all'); // 'all' | 'pending' | 'approved'
@@ -32,6 +48,17 @@ export default function AdminDashboardPage() {
   const [hoveredSlice, setHoveredSlice] = useState(null);
   const [showStatementModal, setShowStatementModal] = useState(false);
   const [statementMonth, setStatementMonth] = useState('October 2026');
+
+  // Block rendering of sensitive admin data if not verified admin
+  if (authLoading || !user || !isAuthorizedAdminEmail(user?.email)) {
+    return (
+      <div className="min-h-[70vh] flex flex-col items-center justify-center p-6 text-center space-y-3">
+        <ShieldAlert className="w-12 h-12 text-rose-500 animate-pulse mx-auto" />
+        <h2 className="text-base font-bold text-slate-800">Verifying Administrator Access...</h2>
+        <p className="text-xs text-slate-500">Restricted administrative area for authorized email accounts only.</p>
+      </div>
+    );
+  }
 
   // 1. REVENUE CALCULATIONS
   const totalCommissionRevenue = orders

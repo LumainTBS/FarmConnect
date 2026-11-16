@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sprout, ShoppingBag, CheckCircle, ArrowRight, ShieldCheck, Sparkles } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { supabase } from '../lib/supabase';
+import { supabase, isAuthorizedAdminEmail } from '../lib/supabase';
 
 export default function RoleSelectionModal({ isOpen, onClose }) {
   const { user, updateUserProfile, showToast, switchRole } = useApp();
@@ -10,7 +10,7 @@ export default function RoleSelectionModal({ isOpen, onClose }) {
   const [selectedRole, setSelectedRole] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  if (!isOpen || !user) return null;
+  if (!isOpen || !user || isAuthorizedAdminEmail(user?.email)) return null;
 
   const handleConfirmRole = async () => {
     if (!selectedRole || isSubmitting) return;

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { supabase } from '../lib/supabase';
+import { supabase, isAuthorizedAdminEmail } from '../lib/supabase';
 
 export default function LoginPage() {
   const { loginUser, user, authLoading, showToast } = useApp();
@@ -17,7 +17,11 @@ export default function LoginPage() {
   // Auto-redirect when user is authenticated (fixes Google OAuth return staying on login page)
   React.useEffect(() => {
     if (user && !authLoading) {
-      navigate(user.role === 'farmer' ? '/farmer/dashboard' : '/marketplace');
+      if (isAuthorizedAdminEmail(user.email)) {
+        navigate('/admin');
+      } else {
+        navigate(user.role === 'farmer' ? '/farmer/dashboard' : '/marketplace');
+      }
     }
   }, [user, authLoading, navigate]);
 

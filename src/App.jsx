@@ -1,6 +1,7 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
+import { isAuthorizedAdminEmail } from './lib/supabase';
 import Header from './components/Header';
 import MobileNav from './components/MobileNav';
 import Footer from './components/Footer';
@@ -34,6 +35,29 @@ import SubscriptionsPage from './pages/SubscriptionsPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import TermsPage from './pages/TermsPage';
 import CookieConsent from './components/CookieConsent';
+
+function AdminProtectedRoute({ children }) {
+  const { user, authLoading, showToast } = useApp();
+  const navigate = useNavigate();
+
+  React.useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        showToast('Please sign in to access the administrator portal.', 'error');
+        navigate('/login', { replace: true });
+      } else if (!isAuthorizedAdminEmail(user.email)) {
+        showToast('Access denied: Administrator permissions required.', 'error');
+        navigate(user.role === 'farmer' ? '/farmer/dashboard' : '/marketplace', { replace: true });
+      }
+    }
+  }, [user, authLoading, navigate, showToast]);
+
+  if (authLoading || !user || !isAuthorizedAdminEmail(user?.email)) {
+    return null;
+  }
+
+  return children;
+}
 
 function AppContent() {
   const { isRoleModalOpen, setIsRoleModalOpen } = useApp();
@@ -76,7 +100,14 @@ function AppContent() {
 
             {/* Subscriptions & Admin */}
             <Route path="/subscriptions" element={<SubscriptionsPage />} />
-            <Route path="/admin" element={<AdminDashboardPage />} />
+            <Route 
+              path="/admin" 
+              element={
+                <AdminProtectedRoute>
+                  <AdminDashboardPage />
+                </AdminProtectedRoute>
+              } 
+            />
             
             <Route path="*" element={<HomePage />} />
           </Routes>

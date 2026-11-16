@@ -5,6 +5,7 @@ import {
   TrendingUp, Sprout, Info, Settings, LogOut, UserCheck, CreditCard, ShieldCheck
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { isAuthorizedAdminEmail } from '../lib/supabase';
 
 export default function MobileDrawer({ isOpen, onClose }) {
   const { user, logoutUser, unreadMessagesCount } = useApp();
@@ -181,13 +182,15 @@ export default function MobileDrawer({ isOpen, onClose }) {
               </button>
             )}
 
-            <button 
-              onClick={() => handleNavigate('/admin')}
-              className="w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl hover:bg-emerald-900/50 text-emerald-100 hover:text-white text-sm font-medium text-left"
-            >
-              <ShieldCheck className="w-5 h-5 text-blue-400" />
-              <span>Admin Portal</span>
-            </button>
+            {isAuthorizedAdminEmail(user?.email) && (
+              <button 
+                onClick={() => handleNavigate('/admin')}
+                className="w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl bg-blue-900/40 hover:bg-blue-900/60 text-blue-200 hover:text-white text-sm font-semibold text-left border border-blue-500/30"
+              >
+                <ShieldCheck className="w-5 h-5 text-blue-400" />
+                <span>Admin Portal</span>
+              </button>
+            )}
 
             <button 
               onClick={() => handleNavigate('/about')}
