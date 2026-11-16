@@ -2,7 +2,14 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Upload, X, ArrowLeft, Eye, Sparkles, Lock, AlertTriangle, ShieldCheck, ShieldAlert, Clock, RefreshCw } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { PRODUCT_CATEGORIES, SUBSCRIPTION_TIERS, isFarmerListing, compressImage, uploadListingImageToStorage } from '../lib/supabase';
+import { 
+  PRODUCT_CATEGORIES, 
+  SUBSCRIPTION_TIERS, 
+  isFarmerListing, 
+  compressImage, 
+  uploadListingImageToStorage,
+  getFarmerListingLimit
+} from '../lib/supabase';
 
 export default function AddListingPage() {
   const { addListing, listings, user, showToast } = useApp();
@@ -18,11 +25,13 @@ export default function AddListingPage() {
   const [isPublishing, setIsPublishing] = useState(false);
   const [publishError, setPublishError] = useState('');
 
-  // Quota & Tier Checks
-  const farmerListings = listings.filter(l => isFarmerListing(l, user));
+  // Quota & Tier Checks with Unverified Onboarding Allowance (3 listings) and Free Tier (5 listings)
+  const isVerified = user?.is_verified === true || user?.verification_status === 'approved';
+  const farmerListings = listings.filter(l => isFarmerListing(l, user) && l.status !== 'deleted');
   const userTierKey = user?.subscription_tier || 'free';
   const currentTier = SUBSCRIPTION_TIERS[userTierKey] || SUBSCRIPTION_TIERS.free;
-  const isLimitReached = farmerListings.length >= currentTier.maxListings;
+  const maxAllowedListings = getFarmerListingLimit(user);
+  const isLimitReached = farmerListings.length >= maxAllowedListings;
 
   // Image previews (up to 3) & tracking of raw uploaded files for storage upload
   const [imageUrls, setImageUrls] = useState([
@@ -81,7 +90,6 @@ export default function AddListingPage() {
   };
 
   // Verification & Location checks
-  const isVerified = user?.is_verified === true || user?.verification_status === 'approved';
   const hasUploadedDoc = Boolean(user?.id_document_url);
   const isPendingReview = hasUploadedDoc && !isVerified;
   const isLocationMissing = !user?.location && !user?.inkhundla && !user?.street_address;
@@ -90,21 +98,22 @@ export default function AddListingPage() {
   const handleProceedToPreview = (e) => {
     e.preventDefault();
     if (!productType || !price || !quantity) return;
-    if (!isVerified) {
-      showToast(
-        isPendingReview
-          ? 'Verification Under Review: Admin approval is required before listing produce.'
-          : 'Producer Verification Required: Please submit your National ID and proof of residency first.',
-        'error'
-      );
+    if (isLimitReached) {
+      if (!isVerified) {
+        showToast(
+          'You have reached your onboarding limit of 3 listings. Complete your account verification to build trust with buyers and unlock full farmer account benefits.',
+          'error'
+        );
+      } else {
+        showToast(
+          `You have reached your ${maxAllowedListings}-listing limit for the ${currentTier.name}. Upgrade your plan to unlock more listing opportunities.`,
+          'error'
+        );
+      }
       return;
     }
     if (isLocationMissing) {
       showToast('Please enter your farm location before publishing produce.', 'error');
-      return;
-    }
-    if (isLimitReached) {
-      showToast(`Listing limit reached (${farmerListings.length}/${currentTier.maxListings}). Please upgrade your plan.`, 'error');
       return;
     }
     setStep('preview');
@@ -125,16 +134,16 @@ export default function AddListingPage() {
       showToast('Please enter a valid quantity greater than 0.', 'error');
       return;
     }
-    if (!isVerified) {
-      showToast('Producer verification required to publish listings.', 'error');
+    if (isLimitReached) {
+      if (!isVerified) {
+        showToast('You have reached your onboarding limit of 3 listings. Complete your account verification to unlock full farmer benefits.', 'error');
+      } else {
+        showToast(`You have reached your ${maxAllowedListings}-listing limit for the ${currentTier.name}. Upgrade your plan to unlock more listing opportunities.`, 'error');
+      }
       return;
     }
     if (isLocationMissing) {
       showToast('Location required before listing produce.', 'error');
-      return;
-    }
-    if (isLimitReached) {
-      showToast(`Listing limit reached for ${currentTier.name}. Please upgrade to list more items.`, 'error');
       return;
     }
 
@@ -211,56 +220,38 @@ export default function AddListingPage() {
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-4 pb-20 space-y-6">
       
-      {/* PRODUCER ID & RESIDENCY VERIFICATION GATE BANNER */}
+      {/* ONBOARDING & VERIFICATION STATUS BANNER */}
       {!isVerified && (
         <div className={`p-5 rounded-3xl border shadow-sm ${
-          isPendingReview
-            ? 'bg-amber-50/80 border-amber-300 text-amber-950'
-            : isVerificationRejected
-            ? 'bg-rose-50/80 border-rose-300 text-rose-950'
+          isLimitReached
+            ? 'bg-amber-50/90 border-amber-300 text-amber-950'
             : 'bg-emerald-50/90 border-emerald-300 text-emerald-950'
         }`}>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-start space-x-3.5">
               <div className={`p-3 rounded-2xl shrink-0 ${
-                isPendingReview 
+                isLimitReached 
                   ? 'bg-amber-100 text-amber-800' 
-                  : isVerificationRejected
-                  ? 'bg-rose-100 text-rose-800'
                   : 'bg-emerald-100 text-emerald-800'
               }`}>
-                {isPendingReview ? (
-                  <Clock className="w-5 h-5 animate-pulse" />
-                ) : (
-                  <ShieldAlert className="w-5 h-5" />
-                )}
+                {isLimitReached ? <Lock className="w-5 h-5" /> : <ShieldAlert className="w-5 h-5" />}
               </div>
               <div className="space-y-1">
                 <div className="flex items-center space-x-2">
                   <h4 className="font-extrabold text-xs uppercase tracking-wider">
-                    {isPendingReview 
-                      ? 'Verification Under Review' 
-                      : isVerificationRejected 
-                      ? 'Verification Resubmission Required' 
-                      : 'Producer Verification Required'}
+                    {isLimitReached ? 'Onboarding Listing Limit Reached (3/3)' : 'New Farmer Onboarding Allowance'}
                   </h4>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                    isPendingReview 
-                      ? 'bg-amber-200 text-amber-900' 
-                      : isVerificationRejected 
-                      ? 'bg-rose-200 text-rose-900' 
-                      : 'bg-emerald-200 text-emerald-900'
+                    isLimitReached ? 'bg-amber-200 text-amber-900' : 'bg-emerald-200 text-emerald-900'
                   }`}>
-                    {isPendingReview ? 'Under Review' : isVerificationRejected ? 'Action Needed' : 'Mandatory'}
+                    {farmerListings.length}/3 Listings Published
                   </span>
                 </div>
                 <p className="text-xs leading-relaxed opacity-90">
-                  {isPendingReview ? (
-                    <>Your National ID and Proof of Residency have been uploaded and are currently under review by FarmConnect administrators. You will be able to publish listings as soon as your account is approved.</>
-                  ) : isVerificationRejected ? (
-                    <>Your previous identification documents could not be verified. Please submit an updated National ID and proof of farm residency.</>
+                  {isLimitReached ? (
+                    <>You have published all 3 permitted onboarding listings. Complete your account verification to build trust with buyers and unlock full farmer account benefits (5 free listings).</>
                   ) : (
-                    <>In accordance with Eswatini agricultural standards and buyer safety policies, all local producers must submit their <strong>National ID</strong> and <strong>Proof of Farm Residency</strong> before listing produce.</>
+                    <>Complete your account verification to build trust with buyers and unlock full farmer account benefits. You can publish up to <strong>3 listings</strong> during onboarding ({Math.max(0, 3 - farmerListings.length)} remaining).</>
                   )}
                 </p>
               </div>
@@ -268,27 +259,27 @@ export default function AddListingPage() {
             
             <Link
               to="/account"
-              className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs transition-colors whitespace-nowrap text-center shrink-0"
+              className="px-4 py-2.5 bg-brand-forest hover:bg-brand-dark text-white font-bold text-xs rounded-xl shadow-xs transition-colors whitespace-nowrap text-center shrink-0"
             >
-              {isPendingReview ? 'View Documents' : 'Submit ID Documents →'}
+              Verify My Account
             </Link>
           </div>
         </div>
       )}
 
-      {/* LISTING QUOTA LIMIT REACHED BANNER */}
-      {isLimitReached && (
-        <div className="p-5 bg-rose-50 border border-rose-300 rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm text-rose-950">
+      {/* VERIFIED FARMER LISTING QUOTA LIMIT REACHED BANNER */}
+      {isVerified && isLimitReached && (
+        <div className="p-5 bg-amber-50 border border-amber-300 rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm text-amber-950">
           <div className="flex items-start space-x-3">
-            <div className="p-2.5 bg-rose-100 rounded-2xl text-rose-700 shrink-0">
+            <div className="p-2.5 bg-amber-100 rounded-2xl text-amber-700 shrink-0">
               <Lock className="w-5 h-5" />
             </div>
             <div className="space-y-1">
-              <h4 className="font-extrabold text-xs uppercase tracking-wider text-rose-900">
-                Listing Limit Reached ({farmerListings.length} / {currentTier.maxListings})
+              <h4 className="font-extrabold text-xs uppercase tracking-wider text-amber-900">
+                Listing Limit Reached ({farmerListings.length} / {maxAllowedListings})
               </h4>
-              <p className="text-xs text-rose-800 leading-relaxed">
-                You have reached the maximum allowed produce listings for your <strong>{currentTier.name}</strong>. Upgrade your plan to unlock more listing slots and lower commission rates.
+              <p className="text-xs text-amber-800 leading-relaxed">
+                You have reached your five-listing limit for the Free plan. Upgrade your plan to unlock more listing opportunities.
               </p>
             </div>
           </div>
@@ -503,14 +494,19 @@ export default function AddListingPage() {
 
           <button
             type="submit"
-            className={`w-full py-3.5 rounded-xl font-bold text-sm transition-colors shadow-sm flex items-center justify-center space-x-2 cursor-pointer ${
-              !isVerified 
-                ? 'bg-slate-300 text-slate-600 hover:bg-slate-400' 
-                : 'bg-brand-forest text-white hover:bg-brand-dark'
+            disabled={isLimitReached}
+            className={`w-full py-3.5 rounded-xl font-bold text-sm transition-colors shadow-sm flex items-center justify-center space-x-2 ${
+              isLimitReached
+                ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                : 'bg-brand-forest text-white hover:bg-brand-dark cursor-pointer'
             }`}
           >
             <Eye className="w-4 h-4" />
-            <span>{!isVerified ? 'Verification Required to Proceed' : 'Preview Listing'}</span>
+            <span>
+              {isLimitReached 
+                ? (!isVerified ? 'Onboarding Limit Reached (3/3) — Verify Account' : `Plan Limit Reached (${farmerListings.length}/${maxAllowedListings}) — Upgrade Plan`) 
+                : 'Preview Listing'}
+            </span>
           </button>
         </form>
       ) : (
@@ -560,9 +556,9 @@ export default function AddListingPage() {
             </button>
             <button
               onClick={handlePublish}
-              disabled={!isVerified || isPublishing}
+              disabled={isLimitReached || isPublishing}
               className={`flex-1 py-3 rounded-xl text-xs font-bold shadow-sm transition-colors flex items-center justify-center space-x-2 ${
-                !isVerified || isPublishing
+                isLimitReached || isPublishing
                   ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
                   : 'bg-brand-forest text-white hover:bg-brand-dark cursor-pointer'
               }`}
@@ -573,7 +569,7 @@ export default function AddListingPage() {
                   <span>Publishing Listing to Supabase...</span>
                 </>
               ) : (
-                <span>{!isVerified ? 'Verification Required' : 'Publish Listing'}</span>
+                <span>Publish Listing</span>
               )}
             </button>
           </div>

@@ -68,7 +68,7 @@ export const SUBSCRIPTION_TIERS = {
     price: 0,
     priceLabel: 'Free',
     billingPeriod: 'Forever',
-    maxListings: 3,
+    maxListings: 5,
     commissionRate: 0.05, // 5%
     commissionPercent: 5,
     commissionLabel: '5.0%',
@@ -77,7 +77,7 @@ export const SUBSCRIPTION_TIERS = {
     badgeColor: 'bg-slate-100 text-slate-700 border-slate-300',
     description: 'Perfect for smallholder farmers testing the digital marketplace.',
     features: [
-      'Up to 3 active produce listings',
+      'Up to 5 active produce listings',
       'Standard 5% platform transaction fee',
       'Direct buyer-farmer in-app messaging',
       'Basic SMS & in-app order notifications',
@@ -85,7 +85,7 @@ export const SUBSCRIPTION_TIERS = {
     ],
     limitations: [
       'Market Trends & price forecasting locked',
-      'Max 3 listings limit'
+      'Max 5 listings limit'
     ]
   },
   basic: {
@@ -309,22 +309,41 @@ export const compressImage = (fileOrDataUrl, maxWidth = 800, quality = 0.75) => 
  * Uploads an image file to Supabase Storage bucket.
  * Returns the public URL on success, or null on failure.
  */
-export const uploadListingImageToStorage = async (file, farmerId) => {
+/**
+ * Calculates a farmer's allowed listings quota:
+ * - Unverified farmer: 3 listings (onboarding allowance)
+ * - Verified free-tier farmer: 5 listings
+ * - Verified paid-tier farmer: applicable tier maxListings
+ */
+export const getFarmerListingLimit = (farmerUser) => {
+  if (!farmerUser) return 3;
+  const isVerified = farmerUser.is_verified === true || farmerUser.verification_status === 'approved';
+  if (!isVerified) {
+    return 3; // Onboarding allowance
+  }
+  const tierKey = farmerUser.subscription_tier || 'free';
+  const tier = SUBSCRIPTION_TIERS[tierKey] || SUBSCRIPTION_TIERS.free;
+  return tier.maxListings || 5;
+};
+
+/**
+ * Uploads a profile avatar or cover image to Supabase Storage bucket.
+ * Returns the public URL on success, or null on failure.
+ */
+export const uploadProfileImageToStorage = async (file, userId, type = 'avatar') => {
   if (!file) return null;
   try {
     const ext = file.name ? file.name.split('.').pop().toLowerCase() : 'jpg';
     const cleanExt = ['jpg', 'jpeg', 'png', 'webp'].includes(ext) ? ext : 'jpg';
-    const uid = farmerId && isValidUUID(farmerId) ? farmerId : 'producer';
-    const filePath = `listings/${uid}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${cleanExt}`;
+    const uid = userId && isValidUUID(userId) ? userId : 'user';
+    const filePath = `profiles/${uid}_${type}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${cleanExt}`;
 
-    // 1. Try 'produce-images' bucket
     let bucketName = 'produce-images';
     let { data, error } = await supabase.storage.from(bucketName).upload(filePath, file, {
       cacheControl: '3600',
       upsert: true
     });
 
-    // 2. If 'produce-images' bucket is missing or fails, try 'id-documents'
     if (error && (error.statusCode === '404' || error.message?.includes('Bucket not found'))) {
       bucketName = 'id-documents';
       const fallbackUpload = await supabase.storage.from(bucketName).upload(filePath, file, {
@@ -342,7 +361,47 @@ export const uploadListingImageToStorage = async (file, farmerId) => {
       }
     }
   } catch (err) {
-    console.warn('Storage upload notice:', err);
+    console.warn('Profile image upload notice:', err);
+  }
+  return null;
+};
+
+/**
+ * Uploads a produce listing image file to Supabase Storage bucket.
+ * Returns the public URL on success, or null on failure.
+ */
+export const uploadListingImageToStorage = async (file, farmerId) => {
+  if (!file) return null;
+  try {
+    const ext = file.name ? file.name.split('.').pop().toLowerCase() : 'jpg';
+    const cleanExt = ['jpg', 'jpeg', 'png', 'webp'].includes(ext) ? ext : 'jpg';
+    const uid = farmerId && isValidUUID(farmerId) ? farmerId : 'producer';
+    const filePath = `listings/${uid}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${cleanExt}`;
+
+    let bucketName = 'produce-images';
+    let { data, error } = await supabase.storage.from(bucketName).upload(filePath, file, {
+      cacheControl: '3600',
+      upsert: true
+    });
+
+    if (error && (error.statusCode === '404' || error.message?.includes('Bucket not found'))) {
+      bucketName = 'id-documents';
+      const fallbackUpload = await supabase.storage.from(bucketName).upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: true
+      });
+      data = fallbackUpload.data;
+      error = fallbackUpload.error;
+    }
+
+    if (!error && data) {
+      const { data: urlData } = supabase.storage.from(bucketName).getPublicUrl(filePath);
+      if (urlData?.publicUrl) {
+        return urlData.publicUrl;
+      }
+    }
+  } catch (err) {
+    console.warn('Listing image storage upload notice:', err);
   }
   return null;
 };

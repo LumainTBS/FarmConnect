@@ -214,7 +214,8 @@ export default function SubscriptionsPage() {
           <p className="text-xs text-slate-500 mt-1">Detailed comparison across all 4 Farm Connect subscription tiers.</p>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* Desktop Comparison Table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-xs text-left">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/50">
@@ -228,7 +229,7 @@ export default function SubscriptionsPage() {
             <tbody className="divide-y divide-slate-100">
               <tr>
                 <td className="py-3 px-4 font-semibold text-slate-800">Max Active Produce Listings</td>
-                <td className="py-3 px-4 text-center text-slate-600">3 Listings</td>
+                <td className="py-3 px-4 text-center text-slate-600">5 Listings</td>
                 <td className="py-3 px-4 text-center text-slate-600">10 Listings</td>
                 <td className="py-3 px-4 text-center font-bold text-emerald-800">30 Listings</td>
                 <td className="py-3 px-4 text-center font-bold text-amber-800">Unlimited</td>
@@ -270,6 +271,36 @@ export default function SubscriptionsPage() {
               </tr>
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Comparison Cards */}
+        <div className="md:hidden space-y-3">
+          {Object.entries(SUBSCRIPTION_TIERS).map(([key, tier]) => (
+            <div key={key} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2.5">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                <span className="font-extrabold text-xs uppercase tracking-wide text-slate-900">{tier.name}</span>
+                <span className="font-bold text-xs text-brand-forest">{tier.priceLabel}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <span className="text-[10px] text-slate-400 block">Listings Limit:</span>
+                  <span className="font-semibold text-slate-800">{tier.maxListings === 9999 ? 'Unlimited' : `${tier.maxListings} Listings`}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 block">Commission:</span>
+                  <span className="font-semibold text-slate-800">{tier.commissionLabel}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 block">Market Trends:</span>
+                  <span className="font-semibold text-slate-800">{tier.marketTrendsAccess ? 'Included' : 'Locked'}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 block">Messaging:</span>
+                  <span className="font-semibold text-slate-800">{key === 'free' ? 'Standard' : 'Priority'}</span>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 

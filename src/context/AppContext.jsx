@@ -6,7 +6,8 @@ import {
   calculateOrderCommission,
   isValidUUID,
   generateUUID,
-  isAuthorizedAdminEmail
+  isAuthorizedAdminEmail,
+  getFarmerListingLimit
 } from '../lib/supabase';
 
 // Helper function to check if a listing belongs to the currently logged in farmer
@@ -357,6 +358,20 @@ export const AppProvider = ({ children }) => {
       }
     } catch (e) {
       console.warn('Subscription payments cache read error:', e);
+    }
+    return [];
+  });
+
+  // Customer Reviews state (Real reviews for farmers)
+  const [reviews, setReviews] = useState(() => {
+    try {
+      const saved = localStorage.getItem('farmconnect_reviews');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return Array.isArray(parsed) ? parsed : [];
+      }
+    } catch (e) {
+      console.warn('Reviews cache read error:', e);
     }
     return [];
   });
@@ -802,9 +817,33 @@ export const AppProvider = ({ children }) => {
       showToast('Access denied: Cannot assign administrator role.', 'error');
     }
 
+    // Strip self-assigned verification status unless user is an authorized admin
+    if (!isAuthorizedAdminEmail(user.email)) {
+      delete sanitizedFields.is_verified;
+      delete sanitizedFields.verification_status;
+    }
+
     const updated = { ...user, ...sanitizedFields };
     setUser(updated);
     localStorage.setItem('farmconnect_user', JSON.stringify(updated));
+
+    // Synchronize farmer record in farmers list if user is a farmer
+    setFarmers(prev => prev.map(f => {
+      if (f.id === user.id || f.id === user.farmer_id) {
+        return {
+          ...f,
+          name: updated.full_name || f.name,
+          avatar: updated.profile_picture_url || f.avatar,
+          cover: updated.cover_image_url || f.cover,
+          cover_image_url: updated.cover_image_url || f.cover_image_url,
+          location: updated.location || f.location,
+          inkhundla: updated.inkhundla || f.inkhundla,
+          about: updated.about || f.about,
+          phone: updated.phone_number || f.phone
+        };
+      }
+      return f;
+    }));
 
     try {
       const { error } = await supabase.from('users').update(sanitizedFields).eq('id', user.id);
@@ -913,6 +952,28 @@ export const AppProvider = ({ children }) => {
     if (!authUid) {
       showToast('Active authenticated producer session required to publish.', 'error');
       return { success: false, error: 'Producer session is not authenticated.' };
+    }
+
+    // Server/Context listing limit checks:
+    // Unverified farmer: max 3 listings (onboarding allowance)
+    // Verified free-tier farmer: max 5 listings
+    // Verified paid-tier farmer: applicable subscription tier limit
+    const isVerified = user.is_verified === true || user.verification_status === 'approved';
+    const activeFarmerListings = listings.filter(l => 
+      (l.farmer_id === authUid || l.farmer_id === user.id) && l.status !== 'deleted'
+    );
+    const maxAllowedListings = getFarmerListingLimit(user);
+
+    if (activeFarmerListings.length >= maxAllowedListings) {
+      if (!isVerified) {
+        showToast('You have reached the onboarding limit of 3 listings. Complete your account verification to build trust with buyers and unlock full farmer benefits.', 'error');
+        return { success: false, error: 'Onboarding listing limit of 3 reached.' };
+      } else {
+        const userTierKey = user.subscription_tier || 'free';
+        const currentTier = SUBSCRIPTION_TIERS[userTierKey] || SUBSCRIPTION_TIERS.free;
+        showToast(`You have reached your ${maxAllowedListings}-listing limit for the ${currentTier.name}. Upgrade your plan to unlock more listing opportunities.`, 'error');
+        return { success: false, error: 'Subscription tier listing limit reached.' };
+      }
     }
 
     const newId = generateUUID();
@@ -1352,6 +1413,95 @@ export const AppProvider = ({ children }) => {
     showToast('Thank you for rating your farmer!');
   };
 
+  // Fetch reviews for a specific farmer from Supabase
+  const fetchFarmerReviews = async (farmerId) => {
+    if (!farmerId) return [];
+    try {
+      const { data, error } = await supabase
+        .from('reviews')
+        .select('*')
+        .eq('farmer_id', farmerId)
+        .order('created_at', { ascending: false });
+
+      if (!error && Array.isArray(data)) {
+        setReviews(prev => {
+          const others = prev.filter(r => r.farmer_id !== farmerId);
+          const combined = [...data, ...others];
+          localStorage.setItem('farmconnect_reviews', JSON.stringify(combined));
+          return combined;
+        });
+        return data;
+      }
+    } catch (e) {
+      console.warn('Reviews fetch notice:', e);
+    }
+    return [];
+  };
+
+  // Add or update a review for a specific farmer profile
+  const addFarmerReview = async ({ farmerId, rating, comment }) => {
+    if (!user) {
+      showToast('Please sign in to leave a review.', 'info');
+      return { success: false, error: 'Authentication required' };
+    }
+
+    if (user.id === farmerId || user.farmer_id === farmerId) {
+      showToast('You cannot leave a review on your own farmer profile.', 'error');
+      return { success: false, error: 'Self review not allowed' };
+    }
+
+    const numericRating = Number(rating);
+    if (!numericRating || numericRating < 1 || numericRating > 5) {
+      showToast('Please select a star rating between 1 and 5.', 'error');
+      return { success: false, error: 'Invalid rating' };
+    }
+
+    const cleanComment = comment ? comment.trim() : '';
+    if (!cleanComment) {
+      showToast('Please write a short comment about your experience.', 'error');
+      return { success: false, error: 'Comment cannot be empty' };
+    }
+
+    const newReview = {
+      id: generateUUID(),
+      farmer_id: farmerId,
+      reviewer_id: user.id,
+      reviewer_name: user.full_name || 'Verified Buyer',
+      reviewer_avatar: user.profile_picture_url || '',
+      rating: numericRating,
+      comment: cleanComment,
+      created_at: new Date().toISOString()
+    };
+
+    // Optimistically update local reviews state
+    setReviews(prev => {
+      const filtered = prev.filter(r => !(r.farmer_id === farmerId && r.reviewer_id === user.id));
+      const updated = [newReview, ...filtered];
+      localStorage.setItem('farmconnect_reviews', JSON.stringify(updated));
+      return updated;
+    });
+
+    try {
+      const { error } = await supabase.from('reviews').insert({
+        farmer_id: farmerId,
+        reviewer_id: user.id,
+        reviewer_name: user.full_name || 'Verified Buyer',
+        reviewer_avatar: user.profile_picture_url || '',
+        rating: numericRating,
+        comment: cleanComment
+      });
+
+      if (error) {
+        console.warn('Review database insert notice:', error.message);
+      }
+    } catch (err) {
+      console.warn('Review submission exception:', err);
+    }
+
+    showToast('Thank you! Your review has been submitted successfully.', 'success');
+    return { success: true, data: newReview };
+  };
+
   // Subscription Upgrade
   const upgradeSubscription = async (tierId, paymentDetails = {}) => {
     if (!user) {
@@ -1584,6 +1734,9 @@ export const AppProvider = ({ children }) => {
       createOrder,
       updateOrderStatus,
       rateOrderFarmer,
+      reviews,
+      fetchFarmerReviews,
+      addFarmerReview,
       subscriptionPayments,
       upgradeSubscription,
       adminApproveFarmer,

@@ -82,25 +82,30 @@ export default function FarmerDashboardPage() {
         </div>
       )}
 
-      {/* VERIFICATION NOTICE */}
-      {!user?.is_verified && (
-        <div className="bg-blue-50 border border-blue-200 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-          <div className="flex items-start sm:items-center space-x-3">
-            <div className="p-2 bg-blue-100 rounded-xl text-blue-700 shrink-0">
+      {/* VERIFICATION REMINDER WITH ONBOARDING STATUS */}
+      {(!user?.is_verified && user?.verification_status !== 'approved') && (
+        <div className="bg-emerald-50/90 border border-emerald-300 p-4 sm:p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
+          <div className="flex items-start sm:items-center space-x-3.5">
+            <div className="p-2.5 bg-emerald-100 rounded-xl text-brand-forest shrink-0">
               <ShieldCheck className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-blue-900">National ID Verification Pending</h2>
-              <p className="text-xs text-blue-700 mt-0.5">
-                Upload your Eswatini National ID document in Account Settings to receive the verified farmer badge.
+              <div className="flex items-center space-x-2">
+                <h2 className="text-sm font-bold text-slate-900">Account Verification Needed</h2>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900">
+                  Onboarding: {farmerListings.length}/3 Listings
+                </span>
+              </div>
+              <p className="text-xs text-slate-600 mt-1 max-w-xl">
+                Complete your account verification to build trust with buyers and unlock full farmer account benefits.
               </p>
             </div>
           </div>
           <Link
             to="/account"
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl text-center whitespace-nowrap transition-colors"
+            className="px-4 py-2.5 bg-brand-forest hover:bg-brand-dark text-white font-bold text-xs rounded-xl text-center whitespace-nowrap transition-colors shadow-xs shrink-0"
           >
-            Upload ID
+            Verify My Account
           </Link>
         </div>
       )}
