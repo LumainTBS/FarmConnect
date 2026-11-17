@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { 
-  MapPin, CheckCircle, Star, MessageSquare, ShieldCheck, 
+import {
+  MapPin, CheckCircle, Star, MessageSquare, ShieldCheck,
   Truck, Award, ArrowLeft, Edit3, X, Camera, Upload, AlertCircle, Check
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
@@ -10,23 +10,23 @@ import ProductCard from '../components/ProductCard';
 
 export default function FarmerProfilePage() {
   const { id } = useParams();
-  const { 
-    farmers, 
-    listings, 
-    user, 
-    sendMessage, 
-    updateUserProfile, 
-    reviews, 
-    fetchFarmerReviews, 
+  const {
+    farmers,
+    listings,
+    user,
+    sendMessage,
+    updateUserProfile,
+    reviews,
+    fetchFarmerReviews,
     addFarmerReview,
-    showToast 
+    showToast
   } = useApp();
   const navigate = useNavigate();
 
   // 1. Check if the visited profile is the currently authenticated user or farmer
   const isCurrentUser = Boolean(user && (id === user.id || id === user.farmer_id));
   const canEditProfile = Boolean(isCurrentUser || isAuthorizedAdminEmail(user?.email));
-  
+
   // 2. Find from farmers list or construct from listings
   const foundFarmer = (farmers || []).find(f => f.id === id);
   const sampleListing = (listings || []).find(l => l.farmer_id === id);
@@ -124,15 +124,15 @@ export default function FarmerProfilePage() {
   }
 
   // Filter listings belonging to this specific farmer
-  const farmerListings = (listings || []).filter(l => 
-    l.farmer_id === farmer.id || 
+  const farmerListings = (listings || []).filter(l =>
+    l.farmer_id === farmer.id ||
     (farmer.name && l.farmer_name && l.farmer_name.toLowerCase() === farmer.name.toLowerCase())
   );
 
   // Filter real reviews for this farmer
   const farmerReviews = (reviews || []).filter(r => r.farmer_id === farmer.id);
   const totalReviewsCount = farmerReviews.length;
-  const averageRating = totalReviewsCount > 0 
+  const averageRating = totalReviewsCount > 0
     ? (farmerReviews.reduce((sum, r) => sum + Number(r.rating || 5), 0) / totalReviewsCount).toFixed(1)
     : Number(farmer.rating || 5.0).toFixed(1);
 
@@ -209,6 +209,16 @@ export default function FarmerProfilePage() {
     e.preventDefault();
     setEditError('');
 
+    // Ownership guard: only the authenticated owner can save
+    if (!user) {
+      setEditError('You must be signed in to edit your profile.');
+      return;
+    }
+    if (!isCurrentUser) {
+      setEditError('Access denied: You can only edit your own farmer profile.');
+      return;
+    }
+
     if (!editName.trim()) {
       setEditError('Farmer or business name is required.');
       return;
@@ -219,17 +229,17 @@ export default function FarmerProfilePage() {
       let finalAvatarUrl = avatarPreview;
       let finalCoverUrl = coverPreview;
 
-      // Upload avatar to storage if changed
+      // Upload avatar to storage if changed (uses authenticated user's own ID)
       if (avatarFile) {
-        const uploadedAvatar = await uploadProfileImageToStorage(avatarFile, user?.id || farmer.id, 'avatar');
+        const uploadedAvatar = await uploadProfileImageToStorage(avatarFile, user.id, 'avatar');
         if (uploadedAvatar) {
           finalAvatarUrl = uploadedAvatar;
         }
       }
 
-      // Upload cover to storage if changed
+      // Upload cover to storage if changed (uses authenticated user's own ID)
       if (coverFile) {
-        const uploadedCover = await uploadProfileImageToStorage(coverFile, user?.id || farmer.id, 'cover');
+        const uploadedCover = await uploadProfileImageToStorage(coverFile, user.id, 'cover');
         if (uploadedCover) {
           finalCoverUrl = uploadedCover;
         }
@@ -300,7 +310,7 @@ export default function FarmerProfilePage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4 pb-20 space-y-6">
-      
+
       {/* Back button */}
       <button onClick={() => navigate(-1)} className="inline-flex items-center space-x-1.5 text-xs font-semibold text-slate-600 hover:text-brand-forest cursor-pointer">
         <ArrowLeft className="w-4 h-4" />
@@ -317,10 +327,10 @@ export default function FarmerProfilePage() {
         <div className="p-5 relative space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 -mt-14 sm:-mt-16">
             <div className="flex items-end space-x-3.5">
-              <img 
-                src={farmer.avatar} 
-                alt={farmer.name} 
-                className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover border-4 border-white shadow-md bg-white shrink-0" 
+              <img
+                src={farmer.avatar}
+                alt={farmer.name}
+                className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover border-4 border-white shadow-md bg-white shrink-0"
               />
               <div className="pt-2">
                 <div className="flex items-center space-x-1.5">
@@ -367,25 +377,22 @@ export default function FarmerProfilePage() {
           <div className="flex border-b border-slate-200 pt-2 space-x-6 text-xs font-bold">
             <button
               onClick={() => setActiveTab('about')}
-              className={`pb-2.5 transition-colors border-b-2 cursor-pointer ${
-                activeTab === 'about' ? 'border-brand-forest text-brand-forest' : 'border-transparent text-slate-500 hover:text-slate-800'
-              }`}
+              className={`pb-2.5 transition-colors border-b-2 cursor-pointer ${activeTab === 'about' ? 'border-brand-forest text-brand-forest' : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
             >
               About
             </button>
             <button
               onClick={() => setActiveTab('products')}
-              className={`pb-2.5 transition-colors border-b-2 cursor-pointer ${
-                activeTab === 'products' ? 'border-brand-forest text-brand-forest' : 'border-transparent text-slate-500 hover:text-slate-800'
-              }`}
+              className={`pb-2.5 transition-colors border-b-2 cursor-pointer ${activeTab === 'products' ? 'border-brand-forest text-brand-forest' : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
             >
               Products ({farmerListings.length})
             </button>
             <button
               onClick={() => setActiveTab('reviews')}
-              className={`pb-2.5 transition-colors border-b-2 cursor-pointer ${
-                activeTab === 'reviews' ? 'border-brand-forest text-brand-forest' : 'border-transparent text-slate-500 hover:text-slate-800'
-              }`}
+              className={`pb-2.5 transition-colors border-b-2 cursor-pointer ${activeTab === 'reviews' ? 'border-brand-forest text-brand-forest' : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
             >
               Reviews ({totalReviewsCount})
             </button>
@@ -431,7 +438,7 @@ export default function FarmerProfilePage() {
           {activeTab === 'products' && (
             <div className="pt-2">
               {farmerListings.length > 0 ? (
-                <div className="grid grid-cols-3 gap-2 sm:gap-4">
+                <div className="grid grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
                   {farmerListings.map(listing => (
                     <ProductCard key={listing.id} listing={listing} />
                   ))}
@@ -548,7 +555,7 @@ export default function FarmerProfilePage() {
               {/* REVIEWS LIST */}
               <div className="space-y-3">
                 <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-500">Customer Feedback & Ratings</h4>
-                
+
                 {farmerReviews.length > 0 ? (
                   <div className="space-y-3">
                     {farmerReviews.map((rev) => (
@@ -564,7 +571,7 @@ export default function FarmerProfilePage() {
                             )}
                             <span className="font-bold text-slate-900">{rev.reviewer_name || 'Verified Client'}</span>
                           </div>
-                          
+
                           <div className="flex items-center space-x-1.5">
                             <span className="text-amber-500 font-bold tracking-widest">
                               {'★'.repeat(Math.round(rev.rating || 5))}
@@ -597,7 +604,7 @@ export default function FarmerProfilePage() {
       {isEditModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-fade-in">
           <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-xl w-full p-6 sm:p-7 space-y-5 my-8 animate-scale-up">
-            
+
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
                 <h3 className="text-base font-bold text-slate-900">Edit Farmer Profile</h3>
@@ -619,7 +626,7 @@ export default function FarmerProfilePage() {
             )}
 
             <form onSubmit={handleSaveProfile} className="space-y-4">
-              
+
               {/* Cover Banner Image Upload & Preview */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Cover / Banner Image</label>

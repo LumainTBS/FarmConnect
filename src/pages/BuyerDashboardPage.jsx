@@ -254,7 +254,7 @@ export default function BuyerDashboardPage() {
           </Link>
         </div>
 
-        <div className="grid grid-cols-3 gap-2.5 sm:gap-4">
+        <div className="grid grid-cols-3 md:grid-cols-4 gap-2.5 sm:gap-3 md:gap-4">
           {featuredListings.map((listing) => (
             <ProductCard key={listing.id} listing={listing} />
           ))}

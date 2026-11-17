@@ -77,10 +77,10 @@ export default function HomePage() {
     .sort((a, b) => (b.goods_sold || 0) - (a.goods_sold || 0) || (b.rating || 0) - (a.rating || 0))
     .slice(0, 4);
 
-  // Requirement 2: Exactly the six most recently published product listings (sorted newest first)
+  // Homepage preview: exactly the 3 most recently published product listings
   const recentListings = [...listings]
     .sort((a, b) => new Date(b.created_at || b.published_at || 0) - new Date(a.created_at || a.published_at || 0))
-    .slice(0, 6);
+    .slice(0, 3);
 
   return (
     <div className="space-y-8 pb-12">
@@ -322,7 +322,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* HOMEPAGE MARKETPLACE: 6 MOST RECENT PRODUCT LISTINGS */}
+      {/* HOMEPAGE MARKETPLACE: 3 MOST RECENT PRODUCT LISTINGS */}
       <section className="px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -330,17 +330,28 @@ export default function HomePage() {
             <p className="text-xs text-slate-500">Fresh produce harvests directly from local farms.</p>
           </div>
           <Link to="/marketplace" className="text-xs font-semibold text-brand-forest hover:underline flex items-center gap-1">
-            <span>View all produce</span>
+            <span>View Marketplace</span>
             <ChevronRight className="w-3.5 h-3.5" />
           </Link>
         </div>
 
         {recentListings.length > 0 ? (
-          <div className="grid grid-cols-3 gap-2.5 sm:gap-4">
-            {recentListings.map((listing) => (
-              <ProductCard key={listing.id} listing={listing} />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-3 gap-2.5 sm:gap-4">
+              {recentListings.map((listing) => (
+                <ProductCard key={listing.id} listing={listing} />
+              ))}
+            </div>
+            <div className="mt-4 text-center">
+              <Link
+                to="/marketplace"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-forest hover:bg-brand-dark text-white text-xs font-bold rounded-xl shadow-sm transition-colors"
+              >
+                <span>View Full Marketplace</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+          </>
         ) : (
           <div className="bg-white/80 backdrop-blur-md rounded-2xl border border-slate-200/90 p-8 text-center text-slate-500 text-xs">
             No produce listings available at the moment.

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { 
-  ShieldCheck, AlertTriangle, CheckCircle, XCircle, DollarSign, 
-  Users, Package, TrendingUp, CreditCard, Percent, Eye, FileText, 
+import {
+  ShieldCheck, AlertTriangle, CheckCircle, XCircle, DollarSign,
+  Users, Package, TrendingUp, CreditCard, Percent, Eye, FileText,
   Filter, Search, ArrowUpRight, Award, RefreshCw, BarChart3, PieChart as PieIcon,
   Activity, ArrowDownRight, Layers, Printer, Download, Calendar, Sparkles, X, ShieldAlert
 } from 'lucide-react';
@@ -10,13 +10,13 @@ import { useApp } from '../context/AppContext';
 import { SUBSCRIPTION_TIERS, isAuthorizedAdminEmail, getFarmerListingLimit } from '../lib/supabase';
 
 export default function AdminDashboardPage() {
-  const { 
-    user, 
+  const {
+    user,
     authLoading,
     showToast,
-    farmers,  
-    orders, 
-    listings, 
+    farmers,
+    orders,
+    listings,
     subscriptionPayments,
     adminApproveFarmer,
     adminRejectFarmer,
@@ -74,7 +74,7 @@ export default function AdminDashboardPage() {
 
   // 2. VERIFICATIONS QUEUE
   const pendingFarmers = farmers.filter(f => !f.is_verified || f.verification_status === 'pending');
-  
+
   const filteredFarmers = farmers.filter(f => {
     if (verificationFilter === 'pending') return !f.is_verified || f.verification_status === 'pending';
     if (verificationFilter === 'approved') return f.is_verified || f.verification_status === 'approved';
@@ -82,9 +82,9 @@ export default function AdminDashboardPage() {
   }).filter(f => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
-    return (f.name && f.name.toLowerCase().includes(q)) || 
-           (f.email && f.email.toLowerCase().includes(q)) ||
-           (f.inkhundla && f.inkhundla.toLowerCase().includes(q));
+    return (f.name && f.name.toLowerCase().includes(q)) ||
+      (f.email && f.email.toLowerCase().includes(q)) ||
+      (f.inkhundla && f.inkhundla.toLowerCase().includes(q));
   });
 
   // 3. CHART DATA GENERATION
@@ -145,7 +145,7 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-28 space-y-8">
-      
+
       {/* ADMIN TOP BANNER (LIQUID GLASS & GLASSMORPHISM) */}
       <div className="relative rounded-3xl overflow-hidden p-6 sm:p-8 text-white shadow-2xl bg-gradient-to-r from-slate-950 via-[#0a2717] to-slate-950 border border-emerald-500/30 backdrop-blur-xl">
         {/* Ambient Glow Orbs */}
@@ -181,7 +181,7 @@ export default function AdminDashboardPage() {
 
       {/* 4 LIQUID GLASS METRIC STAT CARDS */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        
+
         <div className="bg-white/80 backdrop-blur-md p-5 rounded-3xl border border-slate-200/90 shadow-sm hover:shadow-md transition-all space-y-1 relative overflow-hidden group">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Platform Revenue</span>
@@ -249,11 +249,10 @@ export default function AdminDashboardPage() {
       <div className="border-b border-slate-200 flex items-center space-x-2 sm:space-x-4 overflow-x-auto">
         <button
           onClick={() => setActiveTab('overview')}
-          className={`pb-3 px-3 text-xs sm:text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${
-            activeTab === 'overview'
-              ? 'border-brand-forest text-brand-forest'
-              : 'border-transparent text-slate-500 hover:text-slate-900'
-          }`}
+          className={`pb-3 px-3 text-xs sm:text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${activeTab === 'overview'
+            ? 'border-brand-forest text-brand-forest'
+            : 'border-transparent text-slate-500 hover:text-slate-900'
+            }`}
         >
           <Activity className="w-4 h-4" />
           <span>Interactive Visuals & Analytics</span>
@@ -261,11 +260,10 @@ export default function AdminDashboardPage() {
 
         <button
           onClick={() => setActiveTab('verifications')}
-          className={`pb-3 px-3 text-xs sm:text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${
-            activeTab === 'verifications'
-              ? 'border-brand-forest text-brand-forest'
-              : 'border-transparent text-slate-500 hover:text-slate-900'
-          }`}
+          className={`pb-3 px-3 text-xs sm:text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${activeTab === 'verifications'
+            ? 'border-brand-forest text-brand-forest'
+            : 'border-transparent text-slate-500 hover:text-slate-900'
+            }`}
         >
           <ShieldCheck className="w-4 h-4" />
           <span>KYC ID Verifications ({pendingFarmers.length})</span>
@@ -273,11 +271,10 @@ export default function AdminDashboardPage() {
 
         <button
           onClick={() => setActiveTab('subscriptions')}
-          className={`pb-3 px-3 text-xs sm:text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${
-            activeTab === 'subscriptions'
-              ? 'border-brand-forest text-brand-forest'
-              : 'border-transparent text-slate-500 hover:text-slate-900'
-          }`}
+          className={`pb-3 px-3 text-xs sm:text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${activeTab === 'subscriptions'
+            ? 'border-brand-forest text-brand-forest'
+            : 'border-transparent text-slate-500 hover:text-slate-900'
+            }`}
         >
           <CreditCard className="w-4 h-4" />
           <span>Subscriptions Ledger ({subscriptionPayments.length})</span>
@@ -285,11 +282,10 @@ export default function AdminDashboardPage() {
 
         <button
           onClick={() => setActiveTab('commissions')}
-          className={`pb-3 px-3 text-xs sm:text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${
-            activeTab === 'commissions'
-              ? 'border-brand-forest text-brand-forest'
-              : 'border-transparent text-slate-500 hover:text-slate-900'
-          }`}
+          className={`pb-3 px-3 text-xs sm:text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${activeTab === 'commissions'
+            ? 'border-brand-forest text-brand-forest'
+            : 'border-transparent text-slate-500 hover:text-slate-900'
+            }`}
         >
           <DollarSign className="w-4 h-4" />
           <span>Commissions Ledger ({orders.length})</span>
@@ -299,7 +295,7 @@ export default function AdminDashboardPage() {
       {/* TAB 1: VISUAL ANALYTICS (BAR GRAPHS, PIE CHARTS, LINE GRAPHS) */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
-          
+
           {/* SECTION A: LINE GRAPH (PLATFORM GMV & VOLUME VELOCITY) */}
           <div className="bg-white/85 backdrop-blur-md rounded-3xl border border-slate-200/90 p-6 sm:p-7 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -318,17 +314,15 @@ export default function AdminDashboardPage() {
               <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl self-start sm:self-auto">
                 <button
                   onClick={() => setChartTimeframe('7d')}
-                  className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors ${
-                    chartTimeframe === '7d' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-900'
-                  }`}
+                  className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors ${chartTimeframe === '7d' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-900'
+                    }`}
                 >
                   7 Days
                 </button>
                 <button
                   onClick={() => setChartTimeframe('30d')}
-                  className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors ${
-                    chartTimeframe === '30d' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-900'
-                  }`}
+                  className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors ${chartTimeframe === '30d' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-900'
+                    }`}
                 >
                   30 Days
                 </button>
@@ -416,7 +410,7 @@ export default function AdminDashboardPage() {
 
           {/* SECTION B: TWO COLUMNS: BAR GRAPH + DONUT / PIE CHART */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            
+
             {/* 1. BAR GRAPH: MONTHLY REVENUE COMPARISON */}
             <div className="bg-white/85 backdrop-blur-md rounded-3xl border border-slate-200/90 p-6 shadow-sm space-y-4">
               <div className="flex items-center justify-between">
@@ -453,8 +447,8 @@ export default function AdminDashboardPage() {
                   const isHovered = hoveredBar === idx;
 
                   return (
-                    <div 
-                      key={idx} 
+                    <div
+                      key={idx}
                       className="flex-1 flex flex-col items-center gap-1 group cursor-pointer"
                       onMouseEnter={() => setHoveredBar(idx)}
                       onMouseLeave={() => setHoveredBar(null)}
@@ -468,12 +462,12 @@ export default function AdminDashboardPage() {
 
                       <div className="w-full flex items-end justify-center gap-1.5 h-44">
                         {/* Commission Bar */}
-                        <div 
+                        <div
                           className="w-1/2 bg-gradient-to-t from-emerald-600 to-emerald-400 rounded-t-md transition-all duration-300 hover:opacity-90"
                           style={{ height: `${commHeight}px` }}
                         />
                         {/* Subscription Bar */}
-                        <div 
+                        <div
                           className="w-1/2 bg-gradient-to-t from-indigo-600 to-indigo-400 rounded-t-md transition-all duration-300 hover:opacity-90"
                           style={{ height: `${subHeight}px` }}
                         />
@@ -543,11 +537,10 @@ export default function AdminDashboardPage() {
                 {/* Donut Legend */}
                 <div className="space-y-2 flex-1 w-full">
                   {pieSlices.map((slice, i) => (
-                    <div 
-                      key={i} 
-                      className={`flex items-center justify-between p-2 rounded-xl border transition-colors ${
-                        hoveredSlice?.name === slice.name ? 'bg-slate-50 border-slate-300' : 'border-transparent'
-                      }`}
+                    <div
+                      key={i}
+                      className={`flex items-center justify-between p-2 rounded-xl border transition-colors ${hoveredSlice?.name === slice.name ? 'bg-slate-50 border-slate-300' : 'border-transparent'
+                        }`}
                       onMouseEnter={() => setHoveredSlice(slice)}
                       onMouseLeave={() => setHoveredSlice(null)}
                     >
@@ -574,7 +567,7 @@ export default function AdminDashboardPage() {
 
           {/* SECTION C: KYC QUEUE PREVIEW & SUBSCRIPTION TIERS BREAKDOWN */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
+
             {/* Pending Verifications */}
             <div className="bg-white/85 backdrop-blur-md p-6 rounded-3xl border border-slate-200/90 shadow-sm space-y-4">
               <div className="flex items-center justify-between">
@@ -662,7 +655,7 @@ export default function AdminDashboardPage() {
       {/* TAB 2: FARMER ID KYC APPROVALS */}
       {activeTab === 'verifications' && (
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 sm:p-8 space-y-6">
-          
+
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h2 className="text-xl font-bold text-slate-900">Farmer Verification & KYC Management</h2>
@@ -673,31 +666,28 @@ export default function AdminDashboardPage() {
             <div className="flex items-center space-x-2">
               <button
                 onClick={() => setVerificationFilter('all')}
-                className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-colors ${
-                  verificationFilter === 'all'
-                    ? 'bg-slate-900 text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
+                className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-colors ${verificationFilter === 'all'
+                  ? 'bg-slate-900 text-white'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
               >
                 All ({farmers.length})
               </button>
               <button
                 onClick={() => setVerificationFilter('pending')}
-                className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-colors ${
-                  verificationFilter === 'pending'
-                    ? 'bg-amber-600 text-white'
-                    : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
-                }`}
+                className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-colors ${verificationFilter === 'pending'
+                  ? 'bg-amber-600 text-white'
+                  : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
+                  }`}
               >
                 Pending ({pendingFarmers.length})
               </button>
               <button
                 onClick={() => setVerificationFilter('approved')}
-                className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-colors ${
-                  verificationFilter === 'approved'
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-                }`}
+                className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-colors ${verificationFilter === 'approved'
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                  }`}
               >
                 Approved ({farmers.length - pendingFarmers.length})
               </button>
@@ -837,12 +827,11 @@ export default function AdminDashboardPage() {
                         <div className="text-[11px] text-slate-400">{farmer.email}</div>
                       </div>
                     </div>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      isVerified ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' :
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isVerified ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' :
                       farmer.verification_status === 'rejected' ? 'bg-rose-50 text-rose-800 border border-rose-200' :
-                      farmer.id_document_url ? 'bg-amber-50 text-amber-800 border border-amber-200' :
-                      'bg-slate-100 text-slate-700 border border-slate-200'
-                    }`}>
+                        farmer.id_document_url ? 'bg-amber-50 text-amber-800 border border-amber-200' :
+                          'bg-slate-100 text-slate-700 border border-slate-200'
+                      }`}>
                       {isVerified ? 'Verified' : farmer.verification_status === 'rejected' ? 'Rejected' : farmer.id_document_url ? 'Documents Submitted' : 'Unverified (Onboarding)'}
                     </span>
                   </div>
@@ -1174,7 +1163,7 @@ export default function AdminDashboardPage() {
               <div className="flex items-center space-x-3">
                 <div className="flex items-center space-x-1.5 bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700 text-xs">
                   <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                  <select 
+                  <select
                     value={statementMonth}
                     onChange={(e) => setStatementMonth(e.target.value)}
                     className="bg-transparent text-white focus:outline-none cursor-pointer font-semibold"
@@ -1205,8 +1194,8 @@ export default function AdminDashboardPage() {
 
             {/* Printable Statement Document Content */}
             <div className="p-4 sm:p-8 overflow-y-auto bg-slate-200/50">
-              <div 
-                id="printable-statement" 
+              <div
+                id="printable-statement"
                 className="bg-white rounded-2xl shadow-sm border border-slate-300/80 p-6 sm:p-10 text-slate-900 space-y-6 max-w-3xl mx-auto"
               >
                 {/* Statement Header */}
@@ -1240,7 +1229,7 @@ export default function AdminDashboardPage() {
                     <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
                     <span>1. Financial & Revenue Performance Summary</span>
                   </h3>
-                  
+
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
                       <div className="text-[10px] font-bold text-slate-500 uppercase">Gross Merchandise Value</div>
@@ -1271,7 +1260,7 @@ export default function AdminDashboardPage() {
                     <Users className="w-3.5 h-3.5 text-blue-600" />
                     <span>2. Platform Ecosystem & User Participation</span>
                   </h3>
-                  
+
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                     <div className="border border-slate-200 p-2.5 rounded-xl">
                       <span className="text-slate-500 block text-[10px]">Registered Farmers</span>

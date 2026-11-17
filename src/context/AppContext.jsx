@@ -808,7 +808,7 @@ export const AppProvider = ({ children }) => {
   };
 
   const updateUserProfile = async (updatedFields) => {
-    if (!user) return;
+    if (!user) throw new Error('You must be signed in to update your profile.');
 
     // Strip unauthorized admin role elevation
     const sanitizedFields = { ...updatedFields };
@@ -823,6 +823,22 @@ export const AppProvider = ({ children }) => {
       delete sanitizedFields.verification_status;
     }
 
+    // Add timestamp to sanitized fields
+    sanitizedFields.updated_at = new Date().toISOString();
+
+    // Persist to Supabase FIRST — if this fails, we do NOT update local state
+    // RLS ensures only the owner (auth.uid() = id) can update their own record
+    const { error: dbError } = await supabase
+      .from('users')
+      .update(sanitizedFields)
+      .eq('id', user.id);
+
+    if (dbError) {
+      // Surface the actual database error to the caller so they can display it
+      throw new Error(dbError.message || 'Database update failed. Please try again.');
+    }
+
+    // Only update local state after the DB confirms success
     const updated = { ...user, ...sanitizedFields };
     setUser(updated);
     localStorage.setItem('farmconnect_user', JSON.stringify(updated));
@@ -839,21 +855,12 @@ export const AppProvider = ({ children }) => {
           location: updated.location || f.location,
           inkhundla: updated.inkhundla || f.inkhundla,
           about: updated.about || f.about,
+          bio: updated.about || f.bio,
           phone: updated.phone_number || f.phone
         };
       }
       return f;
     }));
-
-    try {
-      const { error } = await supabase.from('users').update(sanitizedFields).eq('id', user.id);
-      if (error) {
-        console.warn('Supabase profile update notice:', error.message);
-      }
-    } catch (e) {
-      console.warn('Profile update notice:', e);
-    }
-    showToast('Profile updated successfully!');
   };
 
   // Cart functions with Auth check and STRICT STOCK VALIDATION
@@ -1462,7 +1469,30 @@ export const AppProvider = ({ children }) => {
       return { success: false, error: 'Comment cannot be empty' };
     }
 
-    const newReview = {
+    // Persist to Supabase FIRST — RLS enforces reviewer_id = auth.uid() and reviewer != farmer
+    const { data: insertedRows, error: dbError } = await supabase
+      .from('reviews')
+      .insert({
+        farmer_id: farmerId,
+        reviewer_id: user.id,
+        reviewer_name: user.full_name || 'Verified Buyer',
+        reviewer_avatar: user.profile_picture_url || '',
+        rating: numericRating,
+        comment: cleanComment
+      })
+      .select()
+      .single();
+
+    if (dbError) {
+      // Surface the actual error message so the UI can show it
+      const friendlyMsg = dbError.message?.includes('row-level security')
+        ? 'Review submission was rejected. Please ensure you are signed in and have not already submitted a review.'
+        : (dbError.message || 'Could not save your review. Please try again.');
+      showToast(friendlyMsg, 'error');
+      return { success: false, error: friendlyMsg };
+    }
+
+    const savedReview = insertedRows || {
       id: generateUUID(),
       farmer_id: farmerId,
       reviewer_id: user.id,
@@ -1473,33 +1503,16 @@ export const AppProvider = ({ children }) => {
       created_at: new Date().toISOString()
     };
 
-    // Optimistically update local reviews state
+    // Update local state with the confirmed database record
     setReviews(prev => {
       const filtered = prev.filter(r => !(r.farmer_id === farmerId && r.reviewer_id === user.id));
-      const updated = [newReview, ...filtered];
+      const updated = [savedReview, ...filtered];
       localStorage.setItem('farmconnect_reviews', JSON.stringify(updated));
       return updated;
     });
 
-    try {
-      const { error } = await supabase.from('reviews').insert({
-        farmer_id: farmerId,
-        reviewer_id: user.id,
-        reviewer_name: user.full_name || 'Verified Buyer',
-        reviewer_avatar: user.profile_picture_url || '',
-        rating: numericRating,
-        comment: cleanComment
-      });
-
-      if (error) {
-        console.warn('Review database insert notice:', error.message);
-      }
-    } catch (err) {
-      console.warn('Review submission exception:', err);
-    }
-
     showToast('Thank you! Your review has been submitted successfully.', 'success');
-    return { success: true, data: newReview };
+    return { success: true, data: savedReview };
   };
 
   // Subscription Upgrade
