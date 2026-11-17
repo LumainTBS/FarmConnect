@@ -77,10 +77,10 @@ export default function HomePage() {
     .sort((a, b) => (b.goods_sold || 0) - (a.goods_sold || 0) || (b.rating || 0) - (a.rating || 0))
     .slice(0, 4);
 
-  // Requirement 2: Exactly the four most recently published product listings (sorted newest first)
+  // Requirement 2: Exactly the six most recently published product listings (sorted newest first)
   const recentListings = [...listings]
     .sort((a, b) => new Date(b.created_at || b.published_at || 0) - new Date(a.created_at || a.published_at || 0))
-    .slice(0, 4);
+    .slice(0, 6);
 
   return (
     <div className="space-y-8 pb-12">
@@ -322,12 +322,12 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* HOMEPAGE MARKETPLACE: 4 MOST RECENT PRODUCT LISTINGS */}
+      {/* HOMEPAGE MARKETPLACE: 6 MOST RECENT PRODUCT LISTINGS */}
       <section className="px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-lg font-bold text-slate-900">Marketplace</h2>
-            <p className="text-xs text-slate-500">The four most recently published fresh produce harvests.</p>
+            <p className="text-xs text-slate-500">Fresh produce harvests directly from local farms.</p>
           </div>
           <Link to="/marketplace" className="text-xs font-semibold text-brand-forest hover:underline flex items-center gap-1">
             <span>View all produce</span>
@@ -336,7 +336,7 @@ export default function HomePage() {
         </div>
 
         {recentListings.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="grid grid-cols-3 gap-2.5 sm:gap-4">
             {recentListings.map((listing) => (
               <ProductCard key={listing.id} listing={listing} />
             ))}

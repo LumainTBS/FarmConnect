@@ -193,7 +193,7 @@ export default function ProductCard({ listing, layout = 'grid', autoHide = false
     );
   }
 
-  // GRID FORMAT (4 cards per row on mobile, 4-5 on desktop)
+  // GRID FORMAT (3 cards per row on mobile and desktop)
   return (
     <div 
       className={`rounded-xl sm:rounded-2xl border overflow-hidden shadow-xs flex flex-col h-full group transition-all duration-300 ${
@@ -236,7 +236,7 @@ export default function ProductCard({ listing, layout = 'grid', autoHide = false
           </div>
         ) : (
           <div className="absolute top-1 left-1 sm:top-2 sm:left-2 flex items-center gap-1">
-            <span className="hidden sm:inline-block text-[10px] sm:text-[11px] font-semibold px-2 py-0.5 rounded-lg bg-white/90 backdrop-blur-md text-slate-800 shadow-xs border border-white/60">
+            <span className="hidden min-[480px]:inline-block text-[10px] sm:text-[11px] font-semibold px-2 py-0.5 rounded-lg bg-white/90 backdrop-blur-md text-slate-800 shadow-xs border border-white/60">
               {listing.category ? listing.category.charAt(0).toUpperCase() + listing.category.slice(1) : 'Produce'}
             </span>
           </div>

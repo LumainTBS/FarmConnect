@@ -17,7 +17,7 @@ export default function BuyerDashboardPage() {
   const totalSpent = deliveredOrders.reduce((sum, o) => sum + (o.total_price || 0), 0);
   const rewardPoints = Math.floor(totalSpent * 0.1);
 
-  const featuredListings = listings.slice(0, 3);
+  const featuredListings = listings.slice(0, 6);
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4 pb-20 space-y-6">
@@ -254,7 +254,7 @@ export default function BuyerDashboardPage() {
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-3 gap-2.5 sm:gap-4">
           {featuredListings.map((listing) => (
             <ProductCard key={listing.id} listing={listing} />
           ))}
