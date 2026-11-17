@@ -23,9 +23,16 @@ export default function FarmerProfilePage() {
   } = useApp();
   const navigate = useNavigate();
 
-  // 1. Check if the visited profile is the currently authenticated user or farmer
-  const isCurrentUser = Boolean(user && (id === user.id || id === user.farmer_id));
-  const canEditProfile = Boolean(isCurrentUser || isAuthorizedAdminEmail(user?.email));
+  // 1. Strict profile ownership check:
+  // ONLY show the "Edit Profile" button to the farmer who is the actual owner of this profile.
+  // Completely hide it for all non-relevant users (buyers, visitors, other farmers, administrators).
+  const isProfileOwner = Boolean(
+    user &&
+    user.role === 'farmer' &&
+    (user.id === id || (user.farmer_id && user.farmer_id === id))
+  );
+  const isCurrentUser = isProfileOwner;
+  const canEditProfile = isProfileOwner;
 
   // 2. Find from farmers list or construct from listings
   const foundFarmer = (farmers || []).find(f => f.id === id);
@@ -214,7 +221,7 @@ export default function FarmerProfilePage() {
       setEditError('You must be signed in to edit your profile.');
       return;
     }
-    if (!isCurrentUser) {
+    if (!isProfileOwner) {
       setEditError('Access denied: You can only edit your own farmer profile.');
       return;
     }

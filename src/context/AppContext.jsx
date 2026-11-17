@@ -1496,46 +1496,34 @@ export const AppProvider = ({ children }) => {
       return { success: false, error: 'Comment cannot be empty' };
     }
 
-    // Prepare full insert payload
-    let insertPayload = {
+    // Database payload matching the active columns of public.reviews.
+    // Reviewer identity is permanently linked via reviewer_id foreign key to public.users.
+    // reviewer_name is never sent to PostgREST, preventing schema cache mismatch errors.
+    const insertPayload = {
       farmer_id: farmerId,
       reviewer_id: user.id,
-      reviewer_name: user.full_name || 'Verified Buyer',
-      reviewer_avatar: user.profile_picture_url || '',
       rating: numericRating,
       comment: cleanComment
     };
+    if (user.profile_picture_url) {
+      insertPayload.reviewer_avatar = user.profile_picture_url;
+    }
 
-    // Attempt 1: Full payload with reviewer_name & reviewer_avatar
-    let { data: insertedRows, error: dbError } = await supabase
+    let { data: insertedRow, error: dbError } = await supabase
       .from('reviews')
       .insert(insertPayload)
       .select()
       .maybeSingle();
 
-    // Attempt 2: If reviewer_name column is not in DB schema cache, retry without it
-    if (dbError && dbError.message && dbError.message.includes('reviewer_name')) {
-      console.warn('reviews.reviewer_name not in schema cache. Retrying insert with standard columns...');
-      delete insertPayload.reviewer_name;
-      const retry = await supabase
-        .from('reviews')
-        .insert(insertPayload)
-        .select()
-        .maybeSingle();
-      insertedRows = retry.data;
-      dbError = retry.error;
-    }
-
-    // Attempt 3: If reviewer_avatar is also not in DB schema cache, retry without it
+    // If reviewer_avatar column causes a schema error, retry with only core columns
     if (dbError && dbError.message && dbError.message.includes('reviewer_avatar')) {
-      console.warn('reviews.reviewer_avatar not in schema cache. Retrying insert without avatar...');
       delete insertPayload.reviewer_avatar;
       const retry = await supabase
         .from('reviews')
         .insert(insertPayload)
         .select()
         .maybeSingle();
-      insertedRows = retry.data;
+      insertedRow = retry.data;
       dbError = retry.error;
     }
 
@@ -1549,14 +1537,14 @@ export const AppProvider = ({ children }) => {
     }
 
     const savedReview = {
-      id: insertedRows?.id || generateUUID(),
+      id: insertedRow?.id || generateUUID(),
       farmer_id: farmerId,
       reviewer_id: user.id,
       reviewer_name: user.full_name || 'Verified Buyer',
       reviewer_avatar: user.profile_picture_url || '',
       rating: numericRating,
       comment: cleanComment,
-      created_at: insertedRows?.created_at || new Date().toISOString()
+      created_at: insertedRow?.created_at || new Date().toISOString()
     };
 
     // Update local state with the confirmed database record

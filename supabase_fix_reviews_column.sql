@@ -99,3 +99,4 @@ END $$;
 
 -- 6. CRUCIAL: Reload PostgREST schema cache so PostgREST immediately discovers the new column
 NOTIFY pgrst, 'reload schema';
+
