@@ -1402,22 +1402,14 @@ export const AppProvider = ({ children }) => {
       o.id === orderId ? { ...o, rated: true, user_rating: rating } : o
     ));
 
-    try {
-      const order = orders.find(o => o.id === orderId);
-      if (order && user) {
-        await supabase.from('reviews').insert({
-          farmer_id: order.farmer_id,
-          listing_id: order.listing_id,
-          reviewer_id: user.id,
-          reviewer_name: user.full_name,
-          rating,
-          comment
-        });
-      }
-    } catch (e) {
-      console.warn('Review insert notice:', e);
+    const order = orders.find(o => o.id === orderId);
+    if (order && user) {
+      await addFarmerReview({
+        farmerId: order.farmer_id,
+        rating,
+        comment: comment || 'Order completed successfully.'
+      });
     }
-    showToast('Thank you for rating your farmer!');
   };
 
   // Fetch reviews for a specific farmer from Supabase
@@ -1431,13 +1423,48 @@ export const AppProvider = ({ children }) => {
         .order('created_at', { ascending: false });
 
       if (!error && Array.isArray(data)) {
+        // Enrich reviews where reviewer_name or reviewer_avatar was not stored in the row
+        const enriched = await Promise.all(
+          data.map(async (rev) => {
+            if (!rev.reviewer_name && rev.reviewer_id) {
+              if (user && user.id === rev.reviewer_id) {
+                return {
+                  ...rev,
+                  reviewer_name: user.full_name || 'Verified Buyer',
+                  reviewer_avatar: rev.reviewer_avatar || user.profile_picture_url || ''
+                };
+              }
+              try {
+                const { data: uData } = await supabase
+                  .from('users')
+                  .select('full_name, profile_picture_url')
+                  .eq('id', rev.reviewer_id)
+                  .maybeSingle();
+                if (uData) {
+                  return {
+                    ...rev,
+                    reviewer_name: uData.full_name || 'Verified Buyer',
+                    reviewer_avatar: rev.reviewer_avatar || uData.profile_picture_url || ''
+                  };
+                }
+              } catch (e) {
+                // Ignore lookup failure
+              }
+            }
+            return {
+              ...rev,
+              reviewer_name: rev.reviewer_name || 'Verified Buyer'
+            };
+          })
+        );
+
         setReviews(prev => {
           const others = prev.filter(r => r.farmer_id !== farmerId);
-          const combined = [...data, ...others];
+          const combined = [...enriched, ...others];
           localStorage.setItem('farmconnect_reviews', JSON.stringify(combined));
           return combined;
         });
-        return data;
+        return enriched;
       }
     } catch (e) {
       console.warn('Reviews fetch notice:', e);
@@ -1469,38 +1496,67 @@ export const AppProvider = ({ children }) => {
       return { success: false, error: 'Comment cannot be empty' };
     }
 
-    // Persist to Supabase FIRST — RLS enforces reviewer_id = auth.uid() and reviewer != farmer
-    const { data: insertedRows, error: dbError } = await supabase
+    // Prepare full insert payload
+    let insertPayload = {
+      farmer_id: farmerId,
+      reviewer_id: user.id,
+      reviewer_name: user.full_name || 'Verified Buyer',
+      reviewer_avatar: user.profile_picture_url || '',
+      rating: numericRating,
+      comment: cleanComment
+    };
+
+    // Attempt 1: Full payload with reviewer_name & reviewer_avatar
+    let { data: insertedRows, error: dbError } = await supabase
       .from('reviews')
-      .insert({
-        farmer_id: farmerId,
-        reviewer_id: user.id,
-        reviewer_name: user.full_name || 'Verified Buyer',
-        reviewer_avatar: user.profile_picture_url || '',
-        rating: numericRating,
-        comment: cleanComment
-      })
+      .insert(insertPayload)
       .select()
-      .single();
+      .maybeSingle();
+
+    // Attempt 2: If reviewer_name column is not in DB schema cache, retry without it
+    if (dbError && dbError.message && dbError.message.includes('reviewer_name')) {
+      console.warn('reviews.reviewer_name not in schema cache. Retrying insert with standard columns...');
+      delete insertPayload.reviewer_name;
+      const retry = await supabase
+        .from('reviews')
+        .insert(insertPayload)
+        .select()
+        .maybeSingle();
+      insertedRows = retry.data;
+      dbError = retry.error;
+    }
+
+    // Attempt 3: If reviewer_avatar is also not in DB schema cache, retry without it
+    if (dbError && dbError.message && dbError.message.includes('reviewer_avatar')) {
+      console.warn('reviews.reviewer_avatar not in schema cache. Retrying insert without avatar...');
+      delete insertPayload.reviewer_avatar;
+      const retry = await supabase
+        .from('reviews')
+        .insert(insertPayload)
+        .select()
+        .maybeSingle();
+      insertedRows = retry.data;
+      dbError = retry.error;
+    }
 
     if (dbError) {
-      // Surface the actual error message so the UI can show it
+      console.error('Database review insertion error:', dbError);
       const friendlyMsg = dbError.message?.includes('row-level security')
-        ? 'Review submission was rejected. Please ensure you are signed in and have not already submitted a review.'
+        ? 'Review submission was rejected by security policy. Please verify you are signed in.'
         : (dbError.message || 'Could not save your review. Please try again.');
       showToast(friendlyMsg, 'error');
       return { success: false, error: friendlyMsg };
     }
 
-    const savedReview = insertedRows || {
-      id: generateUUID(),
+    const savedReview = {
+      id: insertedRows?.id || generateUUID(),
       farmer_id: farmerId,
       reviewer_id: user.id,
       reviewer_name: user.full_name || 'Verified Buyer',
       reviewer_avatar: user.profile_picture_url || '',
       rating: numericRating,
       comment: cleanComment,
-      created_at: new Date().toISOString()
+      created_at: insertedRows?.created_at || new Date().toISOString()
     };
 
     // Update local state with the confirmed database record

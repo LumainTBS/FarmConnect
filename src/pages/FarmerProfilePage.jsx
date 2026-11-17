@@ -41,7 +41,7 @@ export default function FarmerProfilePage() {
     is_verified: user.is_verified || false,
     about: user.about || user.bio || 'Local verified agricultural producer on Farm Connect Eswatini.',
     tags: ['Verified Farmer', 'Direct Farm Gate'],
-    rating: 5.0,
+    rating: null,
     reviews_count: 0,
     goods_sold: user.goods_sold || 0,
     response_rate: 100,
@@ -57,8 +57,8 @@ export default function FarmerProfilePage() {
     is_verified: foundFarmer.is_verified || false,
     about: foundFarmer.about || foundFarmer.bio || 'Local producer on Farm Connect Eswatini.',
     tags: ['Local Producer'],
-    rating: foundFarmer.rating || 5.0,
-    reviews_count: foundFarmer.reviews_count || 0,
+    rating: null,
+    reviews_count: 0,
     goods_sold: foundFarmer.goods_sold || 0,
     response_rate: 100,
     phone: foundFarmer.phone || foundFarmer.phone_number || '',
@@ -73,8 +73,8 @@ export default function FarmerProfilePage() {
     is_verified: sampleListing.is_verified || false,
     about: 'Local producer on Farm Connect Eswatini.',
     tags: ['Local Producer'],
-    rating: sampleListing.rating || 5.0,
-    reviews_count: sampleListing.reviews_count || 0,
+    rating: null,
+    reviews_count: 0,
     goods_sold: 0,
     response_rate: 100,
     phone: '',
@@ -133,8 +133,8 @@ export default function FarmerProfilePage() {
   const farmerReviews = (reviews || []).filter(r => r.farmer_id === farmer.id);
   const totalReviewsCount = farmerReviews.length;
   const averageRating = totalReviewsCount > 0
-    ? (farmerReviews.reduce((sum, r) => sum + Number(r.rating || 5), 0) / totalReviewsCount).toFixed(1)
-    : Number(farmer.rating || 5.0).toFixed(1);
+    ? (farmerReviews.reduce((sum, r) => sum + Number(r.rating || 0), 0) / totalReviewsCount).toFixed(1)
+    : null;
 
   const handleContact = () => {
     sendMessage(farmer.id, farmer.name, `Hello ${farmer.name}, I found your farm profile on Farm Connect Eswatini...`);
@@ -457,15 +457,17 @@ export default function FarmerProfilePage() {
               {/* Dynamic Average Rating Banner */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-amber-50 border border-amber-200 p-4 rounded-2xl text-amber-950">
                 <div className="flex items-center space-x-3">
-                  <div className="p-2.5 bg-amber-100 rounded-xl text-amber-600 shrink-0">
-                    <Star className="w-6 h-6 fill-amber-400 text-amber-400" />
+                  <div className={`p-2.5 rounded-xl shrink-0 ${totalReviewsCount > 0 ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-400'}`}>
+                    <Star className={`w-6 h-6 ${totalReviewsCount > 0 ? 'fill-amber-400 text-amber-400' : 'text-slate-400'}`} />
                   </div>
                   <div>
                     <div className="text-base font-extrabold text-amber-950">
-                      {averageRating} / 5
+                      {totalReviewsCount > 0 ? `${averageRating} / 5` : 'Not yet rated'}
                     </div>
                     <p className="text-xs text-amber-800 mt-0.5">
-                      Based on {totalReviewsCount} {totalReviewsCount === 1 ? 'customer review' : 'customer reviews'}
+                      {totalReviewsCount === 0
+                        ? 'No customer reviews yet'
+                        : `Based on ${totalReviewsCount} ${totalReviewsCount === 1 ? 'customer review' : 'customer reviews'}`}
                     </p>
                   </div>
                 </div>
