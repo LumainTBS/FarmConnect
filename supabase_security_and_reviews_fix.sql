@@ -246,3 +246,4 @@ CREATE TRIGGER set_listings_updated_at
 -- ✅ Migration complete.
 -- Apply this in: Supabase Dashboard > SQL Editor > New Query > Run All
 -- =============================================================================
+
